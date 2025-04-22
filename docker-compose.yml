@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/minilend
+      - PORT=3000
+      - JWT_SECRET=your_jwt_secret_here
+      - CELO_PROVIDER=wss://forno.celo.org/ws
+      - MINIPAY_API_KEY=${MINIPAY_API_KEY}
+    depends_on:
+      - mongo
+    restart: always
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+
+volumes:
+  mongo-data:
