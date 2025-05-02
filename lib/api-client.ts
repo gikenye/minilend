@@ -1,23 +1,65 @@
-// Dummy API client for demo purposes
-// No actual API calls will be made
+import axios from "axios";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+export const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Add request interceptor to include auth token in headers
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("auth_token");
+  if (token) {
+    config.headers["Authorization"] = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Mock data for development (fallback)
+const MOCK_PROFILE = {
+  miniPayAddress: "0x1234567890abcdef",
+  creditScore: 750,
+  loanLimit: 1000,
+};
+
+const MOCK_CREDIT_SCORE = {
+  score: 750,
+  breakdown: {
+    repaymentHistory: 0.85,
+    transactionFrequency: 0.7,
+    savingsPattern: 0.6,
+    socialConnections: 0.8,
+    accountAge: 0.75,
+  },
+};
+
+const MOCK_LOAN_LIMIT = {
+  limit: 1000,
+  currency: "cUSD",
+};
+
+const MOCK_LOAN_HISTORY = [
+  {
+    id: "1",
+    amount: 500,
+    currency: "cUSD",
+    status: "completed",
+    date: "2023-05-15",
+  },
+  {
+    id: "2",
+    amount: 300,
+    currency: "cUSD",
+    status: "active",
+    date: "2023-06-20",
+  },
+];
 
 class ApiClient {
-  // SMS verification endpoints
-  async sendOTP(phoneNumber: string) {
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    return { data: { success: true } }
-  }
-
-  async verifyOTP(phoneNumber: string, otp: string) {
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    return {
-      data: {
-        token: "demo_token_123",
-        userId: "user_123456",
-      },
-    }
-  }
-
+  
   // User endpoints
   async getTransactionSummary(userId: string) {
     await new Promise((resolve) => setTimeout(resolve, 800))

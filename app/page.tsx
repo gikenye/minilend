@@ -1,10 +1,16 @@
-import { ProtectedRoute } from "@/components/protected-route"
-import { Dashboard } from "@/components/dashboard"
+"use client";
 
-export default function Home() {
+import { MiniPayHeader } from "@/components/mini-pay-header";
+import { Dashboard } from "@/components/dashboard";
+import { ProtectedRoute } from "@/components/protected-route";
+
+export default function HomePage() {
   return (
     <ProtectedRoute>
-      <Dashboard />
+      <main className="flex min-h-screen flex-col bg-background">
+        <MiniPayHeader />
+        <Dashboard />
+      </main>
     </ProtectedRoute>
-  )
+  );
 }

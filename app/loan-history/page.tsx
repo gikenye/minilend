@@ -1,19 +1,24 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ArrowLeft, CheckCircle, Clock } from "lucide-react"
-import { MiniPayHeader } from "@/components/mini-pay-header"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowLeft, CheckCircle, Clock, Home } from "lucide-react";
+import { MiniPayHeader } from "@/components/mini-pay-header";
 
-// Dummy loan history data
-const DUMMY_LOAN_HISTORY = [
+// Example loan history data
+const DEMO_LOAN_HISTORY = [
   {
     id: "loan_001",
     amountLocal: 750,
-    localCurrency: "cKES",
+    localCurrency: "KES",
     termDays: 30,
     status: "completed",
     createdAt: "2023-03-15T10:30:00Z",
@@ -22,55 +27,58 @@ const DUMMY_LOAN_HISTORY = [
   {
     id: "loan_002",
     amountLocal: 500,
-    localCurrency: "cKES",
+    localCurrency: "KES",
     termDays: 30,
     status: "completed",
-    createdAt: "2023-04-20T14:15:00Z",
-    completedAt: "2023-05-19T11:30:00Z",
+    createdAt: "2023-02-01T08:15:00Z",
+    completedAt: "2023-03-03T14:20:00Z",
   },
   {
-    id: "loan_123",
-    amountLocal: 500,
-    localCurrency: "cKES",
+    id: "loan_003",
+    amountLocal: 1000,
+    localCurrency: "KES",
     termDays: 30,
-    status: "active",
-    createdAt: "2023-05-10T09:45:00Z",
-    completedAt: null,
+    status: "completed",
+    createdAt: "2023-01-15T16:45:00Z",
+    completedAt: "2023-02-14T11:30:00Z",
   },
-]
+];
 
 export default function LoanHistoryPage() {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
-  const [loanHistory, setLoanHistory] = useState(DUMMY_LOAN_HISTORY)
+  const [isLoading, setIsLoading] = useState(true);
+  const [loanHistory, setLoanHistory] = useState(DEMO_LOAN_HISTORY);
 
   useEffect(() => {
     // Simulate loading for demo
     const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 1500)
+      setIsLoading(false);
+    }, 1500);
 
-    return () => clearTimeout(timer)
-  }, [])
+    return () => clearTimeout(timer);
+  }, []);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
-      month: "short",
+      month: "long",
       day: "numeric",
-    })
-  }
+    });
+  };
 
   return (
     <main className="flex min-h-screen flex-col bg-background">
       <MiniPayHeader />
       <div className="container px-4 py-6 mx-auto space-y-6 max-w-md">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="h-8 w-8">
-            <ArrowLeft className="h-4 w-4" />
-            <span className="sr-only">Back</span>
-          </Button>
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Loan History</h1>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => window.history.back()}
+          >
+            <ArrowLeft className="h-5 w-5" />
+            <span className="sr-only">Go Back</span>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -82,34 +90,34 @@ export default function LoanHistoryPage() {
         ) : (
           <div className="space-y-4">
             {loanHistory.map((loan) => (
-              <Card key={loan.id} className="overflow-hidden">
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">
-                      {loan.amountLocal} {loan.localCurrency}
-                    </CardTitle>
-                    <div className="flex items-center gap-1">
-                      {loan.status === "active" ? (
-                        <Clock className="h-4 w-4 text-amber-500" />
-                      ) : (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      )}
-                      <span className={loan.status === "active" ? "text-amber-500" : "text-green-500"}>
-                        {loan.status === "active" ? "Active" : "Completed"}
-                      </span>
-                    </div>
-                  </div>
+              <Card key={loan.id}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    {loan.amountLocal} {loan.localCurrency}
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  </CardTitle>
                   <CardDescription>
-                    {loan.termDays} day term • Started {formatDate(loan.createdAt)}
+                    {formatDate(loan.createdAt)}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="text-sm text-muted-foreground">
-                    {loan.status === "completed" ? (
-                      <span>Completed on {formatDate(loan.completedAt!)}</span>
-                    ) : (
-                      <span>In progress</span>
-                    )}
+                <CardContent>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Duration</span>
+                      <span>{loan.termDays} days</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Completed On
+                      </span>
+                      <span>{formatDate(loan.completedAt)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Status</span>
+                      <span className="text-green-600 font-medium">
+                        Fully Repaid
+                      </span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -117,6 +125,19 @@ export default function LoanHistoryPage() {
           </div>
         )}
       </div>
+
+      {/* Fixed Home Button */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <Button
+          variant="default"
+          size="icon"
+          className="h-12 w-12 rounded-full shadow-lg"
+          onClick={() => (window.location.href = "/")}
+        >
+          <Home className="h-6 w-6" />
+          <span className="sr-only">Go to Home</span>
+        </Button>
+      </div>
     </main>
-  )
+  );
 }

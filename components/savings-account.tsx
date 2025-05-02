@@ -8,7 +8,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "@/components/ui/use-toast";
 
@@ -25,6 +27,7 @@ export function SavingsAccount() {
   const fetchBalance = async () => {
     if (!user) return;
 
+    setIsLoading(true);
     try {
       // In a real implementation, this would call the API
       // For now, we'll simulate a response
@@ -36,6 +39,11 @@ export function SavingsAccount() {
       });
     } catch (error) {
       console.error("Error fetching account balance:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch account balance",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -43,12 +51,6 @@ export function SavingsAccount() {
 
   useEffect(() => {
     fetchBalance();
-  }, [user]);
-
-  useEffect(() => {
-    // Auto-refresh balance every minute
-    const interval = setInterval(fetchBalance, 60000);
-    return () => clearInterval(interval);
   }, [user]);
 
   return (
@@ -85,6 +87,24 @@ export function SavingsAccount() {
             )}
           </div>
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={fetchBalance}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Updating...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" /> Update Balance
+            </>
+          )}
+        </Button>
       </CardContent>
     </Card>
   );

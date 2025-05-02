@@ -1,82 +1,136 @@
-"use client"
+"use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react"
+import React, { createContext, useContext, useState, useEffect } from "react";
 
-// Dummy user data for demo
-const DUMMY_USER = {
-  id: "user_123456",
-  phoneNumber: "+254712345678",
-  celoWalletAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-  token: "dummy_token_for_demo",
+declare global {
+  interface Window {
+    ethereum?: {
+      isMiniPay?: boolean;
+      request: (args: { method: string }) => Promise<any>;
+    };
+  }
 }
 
 interface User {
-  id: string
-  phoneNumber: string
-  celoWalletAddress: string
-  token: string
+  miniPayAccount?: string;
+  accountNumber: string;
+  balance: string;
+  isConnected: boolean;
+  creditScore?: number;
+  loanLimit?: number;
+  name?: string;
+  accountType: "minipay" | "external";
 }
 
 interface AuthContextType {
-  user: User | null
-  isLoading: boolean
-  isAuthenticated: boolean
-  sendOTP: (phoneNumber: string) => Promise<boolean>
-  verifyOTP: (phoneNumber: string, otp: string) => Promise<boolean>
-  logout: () => void
+  user: User | null;
+  loading: boolean;
+  error: string | null;
+  login: (accountType?: "minipay" | "external") => Promise<void>;
+  logout: () => void;
+  updateBalance: (balance: string) => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  // For demo, we'll start with the dummy user already authenticated
-  const [user, setUser] = useState<User | null>(DUMMY_USER)
-  const [isLoading, setIsLoading] = useState(false)
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Demo OTP functions that always succeed
-  const sendOTP = async (phoneNumber: string): Promise<boolean> => {
-    setIsLoading(true)
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
-    return true
-  }
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof window !== "undefined" && window.ethereum) {
+          try {
+            const accounts = await window.ethereum.request({
+              method: "eth_accounts",
+            });
 
-  const verifyOTP = async (phoneNumber: string, otp: string): Promise<boolean> => {
-    setIsLoading(true)
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setUser(DUMMY_USER)
-    setIsLoading(false)
-    return true
-  }
+            if (accounts && accounts[0]) {
+              setUser({
+                accountNumber: accounts[0],
+                miniPayAccount: accounts[0],
+                balance: "0",
+                isConnected: true,
+                accountType: "minipay",
+              });
+            }
+          } catch (err) {
+            console.error("Silent auth initialization failed:", err);
+          }
+        }
+      } catch (err) {
+        console.error("Auth initialization error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+  }, []);
+
+  const login = async () => {
+    try {
+      setLoading(true);
+      if (typeof window !== "undefined" && window.ethereum) {
+        const accounts = await window.ethereum.request({
+          method: "eth_requestAccounts",
+        });
+
+        if (accounts && accounts[0]) {
+          const newUser: User = {
+            accountNumber: accounts[0],
+            miniPayAccount: accounts[0],
+            balance: "0",
+            isConnected: true,
+            accountType: "minipay",
+          };
+          setUser(newUser);
+          updateBalance("100.00");
+        }
+      }
+    } catch (err) {
+      console.error("Silent login failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const logout = () => {
-    // For demo, we'll just log out and immediately log back in
-    setUser(null)
-    setTimeout(() => setUser(DUMMY_USER), 1000)
-  }
+    setUser(null);
+    setError(null);
+  };
+
+  const updateBalance = (balance: string) => {
+    if (user) {
+      setUser({
+        ...user,
+        balance,
+      });
+    }
+  };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isLoading,
-        isAuthenticated: true, // Always authenticated for demo
-        sendOTP,
-        verifyOTP,
+        loading,
+        error,
+        login,
         logout,
+        updateBalance,
       }}
     >
       {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
+  return context;
 }
