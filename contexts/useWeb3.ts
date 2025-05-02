@@ -1,36 +1,67 @@
-import { useState } from "react";
-import StableTokenABI from "./cusd-abi.json";
-import MinipayNFTABI from "./minipay-nft.json";
+"use client";
+
+import { useState, createContext, useContext } from "react";
+import type { ReactNode } from "react";
+import { stableTokenABI } from "@celo/abis";
 import {
   createPublicClient,
   createWalletClient,
   custom,
-  getContract,
   http,
   parseEther,
-  stringToHex,
+  getContract,
+  type PublicClient,
+  type WalletClient,
+  type Transport,
+  type Account,
+  type Hash,
+  type Chain,
   type Abi,
 } from "viem";
-import { celoAlfajores } from "viem/chains";
+import { celo, celoAlfajores } from "viem/chains";
 
+// Initialize the public client
 const publicClient = createPublicClient({
-  chain: celoAlfajores,
+  chain: celo,
   transport: http(),
 });
 
-const cUSDTokenAddress = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"; // Testnet
-const MINIPAY_NFT_CONTRACT = "0xE8F4699baba6C86DA9729b1B0a1DA1Bd4136eFeF"; // Testnet
+const STABLE_TOKEN_ADDRESS = "0x765DE816845861e75A25fCA122bb6898B8B1282a";
 
-// Extract ABIs from the JSON files
-const stableTokenAbi = StableTokenABI.abi as Abi;
-const minipayNftAbi = MinipayNFTABI.abi as Abi;
+// Create the stable token contract instance
+const StableTokenContract = getContract({
+  abi: stableTokenABI,
+  address: STABLE_TOKEN_ADDRESS,
+  client: publicClient,
+});
+
+// Define the Web3ContextType interface
+export interface Web3ContextType {
+  address: string | null;
+  publicClient: PublicClient;
+  getUserAddress: () => Promise<`0x${string}`>;
+  sendCUSD: (to: string, amount: string) => Promise<`0x${string}`>;
+  signTransaction: () => Promise<string>;
+}
+
+export const Web3Context = createContext<Web3ContextType | undefined>(
+  undefined
+);
 
 export const useWeb3 = () => {
+  const context = useContext(Web3Context);
+  if (!context) {
+    throw new Error("useWeb3 must be used within a Web3Provider");
+  }
+  return context;
+};
+
+export const useWeb3Provider = () => {
   const [address, setAddress] = useState<string | null>(null);
 
   const getUserAddress = async () => {
     if (!window.ethereum) throw new Error("No Ethereum provider found");
-    
+
     const walletClient = createWalletClient({
       transport: custom(window.ethereum),
       chain: celoAlfajores,
@@ -43,62 +74,29 @@ export const useWeb3 = () => {
 
   const sendCUSD = async (to: string, amount: string) => {
     if (!window.ethereum) throw new Error("No Ethereum provider found");
-    
+
     const walletClient = createWalletClient({
       transport: custom(window.ethereum),
       chain: celoAlfajores,
     });
 
     const [address] = await walletClient.getAddresses();
-    
-    const tx = await walletClient.writeContract({
-      address: cUSDTokenAddress,
-      abi: stableTokenAbi,
+
+    const hash = await walletClient.writeContract({
+      address: STABLE_TOKEN_ADDRESS as `0x${string}`,
+      abi: stableTokenABI,
       functionName: "transfer",
-      args: [to, parseEther(amount)],
+      args: [to as `0x${string}`, parseEther(amount)],
       account: address,
     });
 
-    return tx;
+    return hash;
   };
 
-  const mintMinipayNFT = async () => {
-    if (!window.ethereum) throw new Error("No Ethereum provider found");
-    
-    const walletClient = createWalletClient({
-      transport: custom(window.ethereum),
-      chain: celoAlfajores,
-    });
-
-    const [address] = await walletClient.getAddresses();
-    
-    const tx = await walletClient.writeContract({
-      address: MINIPAY_NFT_CONTRACT,
-      abi: minipayNftAbi,
-      functionName: "mint",
-      args: [address],
-      account: address,
-    });
-
-    return tx;
-  };
-
-  const getNFTs = async () => {
-    if (!address) return [];
-    
-    const nfts = await publicClient.readContract({
-      address: MINIPAY_NFT_CONTRACT,
-      abi: minipayNftAbi,
-      functionName: "balanceOf",
-      args: [address],
-    });
-
-    return nfts;
-  };
 
   const signTransaction = async () => {
     if (!window.ethereum) throw new Error("No Ethereum provider found");
-    
+
     const walletClient = createWalletClient({
       transport: custom(window.ethereum),
       chain: celoAlfajores,
@@ -116,10 +114,17 @@ export const useWeb3 = () => {
 
   return {
     address,
+    publicClient,
     getUserAddress,
     sendCUSD,
-    mintMinipayNFT,
-    getNFTs,
     signTransaction,
   };
 };
+function stringToHex(str: string): `0x${string}` {
+  let hex = '0x';
+  for (let i = 0; i < str.length; i++) {
+    hex += str.charCodeAt(i).toString(16).padStart(2, '0');
+  }
+  return hex as `0x${string}`;
+}
+

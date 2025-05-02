@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@celo/abis": "^12.0.3",
     "@celo/connect": "latest",
     "@celo/contractkit": "latest",
     "@hookform/resolvers": "^3.9.1",
