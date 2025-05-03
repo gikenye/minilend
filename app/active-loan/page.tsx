@@ -14,14 +14,14 @@ import { MiniPayHeader } from "@/components/mini-pay-header";
 import { Home, Clock, CheckCircle, ArrowRight } from "lucide-react";
 
 const DEMO_LOAN = {
-  amountLocal: 500,
+  amountLocal: 50000,
   localCurrency: "KES",
   termDays: 30,
   startDate: "2025-04-15",
   nextPaymentDate: "2025-05-15",
   totalPayments: 3,
   paidPayments: 1,
-  paymentAmount: 175, // 500 + 5% interest / 3 payments
+  paymentAmount: 17500, // 50000 + 5% interest / 3 payments
   status: "active",
 };
 
@@ -57,7 +57,7 @@ export default function ActiveLoanPage() {
           <CardContent className="space-y-4">
             <div>
               <div className="text-3xl font-bold">
-                {loan.amountLocal} {loan.localCurrency}
+                {loan.localCurrency} {loan.amountLocal.toLocaleString()}
               </div>
               <div className="text-sm text-muted-foreground">
                 Started on {formatDate(loan.startDate)}
@@ -84,7 +84,7 @@ export default function ActiveLoanPage() {
               <div>
                 <div className="text-sm text-muted-foreground">Amount Due</div>
                 <div className="font-medium">
-                  {loan.paymentAmount} {loan.localCurrency}
+                  {loan.localCurrency} {loan.paymentAmount.toLocaleString()}
                 </div>
               </div>
             </div>
@@ -119,7 +119,8 @@ export default function ActiveLoanPage() {
                       <div>
                         <div className="font-medium">Payment {index + 1}</div>
                         <div className="text-sm text-muted-foreground">
-                          {loan.paymentAmount} {loan.localCurrency}
+                          {loan.localCurrency}{" "}
+                          {loan.paymentAmount.toLocaleString()}
                         </div>
                       </div>
                     </div>

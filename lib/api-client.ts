@@ -1,4 +1,5 @@
 import axios from "axios";
+import { DEFAULT_CURRENCY } from "@/types/currencies";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
@@ -41,40 +42,41 @@ const MOCK_LOAN_LIMIT = {
   currency: "cUSD",
 };
 
+const MOCK_TRANSACTION_SUMMARY = {
+  totalTransactions: 24,
+  totalAmount: 2500,
+  currency: DEFAULT_CURRENCY,
+};
+
 const MOCK_LOAN_HISTORY = [
   {
     id: "1",
     amount: 500,
-    currency: "cUSD",
+    currency: DEFAULT_CURRENCY,
     status: "completed",
     date: "2023-05-15",
   },
   {
     id: "2",
     amount: 300,
-    currency: "cUSD",
+    currency: DEFAULT_CURRENCY,
     status: "active",
     date: "2023-06-20",
   },
 ];
 
 class ApiClient {
-  
   // User endpoints
   async getTransactionSummary(userId: string) {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await new Promise((resolve) => setTimeout(resolve, 800));
     return {
-      data: {
-        totalTransactions: 24,
-        totalAmount: 2500,
-        currency: "cUSD",
-      },
-    }
+      data: MOCK_TRANSACTION_SUMMARY,
+    };
   }
 
   // Loan endpoints
   async getLoanEligibility(userId: string) {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await new Promise((resolve) => setTimeout(resolve, 800));
     return {
       data: {
         limit: 1250,
@@ -86,22 +88,22 @@ class ApiClient {
           maxLimit: 2000,
         },
       },
-    }
+    };
   }
 
   async applyForLoan(loanData: any) {
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     return {
       data: {
         loanId: `loan_${Date.now()}`,
         status: "approved",
         ...loanData,
       },
-    }
+    };
   }
 
   async getActiveLoans(userId: string) {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await new Promise((resolve) => setTimeout(resolve, 800));
     return {
       data: [
         {
@@ -110,14 +112,18 @@ class ApiClient {
           localCurrency: "cKES",
           termDays: 30,
           status: "active",
-          repaymentSchedule: [{ status: "paid" }, { status: "paid" }, { status: "pending" }],
+          repaymentSchedule: [
+            { status: "paid" },
+            { status: "paid" },
+            { status: "pending" },
+          ],
         },
       ],
-    }
+    };
   }
 
   async getLoanDetails(loanId: string) {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await new Promise((resolve) => setTimeout(resolve, 800));
     return {
       data: {
         id: loanId,
@@ -132,12 +138,12 @@ class ApiClient {
           { status: "pending", dueDate: "2023-05-29", amount: 175 },
         ],
       },
-    }
+    };
   }
 
   // Credit endpoints
   async getCreditScore(userId: string) {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await new Promise((resolve) => setTimeout(resolve, 800));
     return {
       data: {
         score: 720,
@@ -149,30 +155,30 @@ class ApiClient {
           savingsPattern: 0.6,
         },
       },
-    }
+    };
   }
 
   // Repayment endpoints
   async getRepaymentSchedule(loanId: string) {
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await new Promise((resolve) => setTimeout(resolve, 800));
     return {
       data: [
         { status: "paid", dueDate: "2023-05-15", amount: 175 },
         { status: "paid", dueDate: "2023-05-22", amount: 175 },
         { status: "pending", dueDate: "2023-05-29", amount: 175 },
       ],
-    }
+    };
   }
 
   async processRepayment(repaymentData: any) {
-    await new Promise((resolve) => setTimeout(resolve, 1200))
+    await new Promise((resolve) => setTimeout(resolve, 1200));
     return {
       data: {
         success: true,
         ...repaymentData,
       },
-    }
+    };
   }
 }
 
-export const apiClient = new ApiClient()
+export const apiClient = new ApiClient();

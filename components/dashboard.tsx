@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { LoanDashboard } from "@/components/loan-dashboard";
+// import { CeloWallet } from "@/components/celo-wallet";
 import { useAuth } from "@/contexts/auth-context";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -44,10 +45,14 @@ export function Dashboard() {
           <Skeleton className="h-[200px] w-full rounded-lg" />
         </div>
       ) : (
-        <LoanDashboard
-          availableCredit={loanEligibility?.limit || 0}
-          activeLoan={activeLoans[0] || null}
-        />
+        <>
+          {/* Wallet component commented out to hide crypto jargon from users */}
+          {/* <CeloWallet /> */}
+          <LoanDashboard
+            availableCredit={loanEligibility?.limit || 0}
+            activeLoan={activeLoans[0] || null}
+          />
+        </>
       )}
     </div>
   );

@@ -11,23 +11,11 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Check, CircleDollarSign, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 
 type Step = "amount" | "repayment" | "confirmation";
-type Currency = "USD" | "KES" | "EUR" | "GHS" | "NGN" | "XOF" | "PHP";
-
-const exchangeRates: Record<Currency, number> = {
-  USD: 1,
-  KES: 140,
-  EUR: 0.92,
-  GHS: 12.5,
-  NGN: 860,
-  XOF: 604,
-  PHP: 56.5,
-};
 
 interface LoanWizardProps {
   availableCredit: number;
@@ -36,17 +24,12 @@ interface LoanWizardProps {
 
 export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
   const [step, setStep] = useState<Step>("amount");
-  const [amount, setAmount] = useState(100);
-  const [savingsCurrency] = useState<Currency>("USD");
-  // Get loan currency from MiniPay environment
-  const [loanCurrency] = useState<Currency>("KES");
+  const [amount, setAmount] = useState(1000);
   const [term] = useState(30);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Calculate loan amount in local currency
-  const loanAmount =
-    amount * (exchangeRates[loanCurrency] / exchangeRates[savingsCurrency]);
-  const totalRepayment = loanAmount * 1.05; // 5% interest
+  // 5% interest rate
+  const totalRepayment = amount * 1.05;
 
   const handleNext = () => {
     if (step === "amount") {
@@ -68,17 +51,15 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
     setIsSubmitting(true);
     try {
       const success = await onSubmit({
-        amountUSD: amount,
-        amountLocal: loanAmount,
-        savingsCurrency,
-        localCurrency: loanCurrency,
+        amountLocal: amount,
+        localCurrency: "KES",
         termDays: term,
       });
 
       if (success) {
         toast({
           title: "Processing Your Loan",
-          description: "Your loan request is being processed in MiniPay.",
+          description: "Your loan request is being processed.",
         });
       }
     } catch (error) {
@@ -97,49 +78,45 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
     <Card>
       <CardHeader>
         <CardTitle>Get an Instant Loan</CardTitle>
-        <CardDescription>
-          Use your savings as security to get quick money in your local currency
-        </CardDescription>
+        <CardDescription>Get quick money based on your savings</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-6">
         {step === "amount" && (
           <>
             <div>
-              <h3 className="text-sm font-medium mb-2">Security Amount</h3>
+              <h3 className="text-sm font-medium mb-2">Loan Amount</h3>
               <div className="flex items-center gap-2 mb-4">
                 <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
                 <div className="text-sm text-muted-foreground">
-                  Select the amount of savings to use as security
+                  Select how much you want to borrow
                 </div>
               </div>
               <Slider
                 value={[amount]}
-                min={10}
-                max={Math.min(availableCredit, 500)}
-                step={10}
+                min={1000}
+                max={Math.min(availableCredit, 70000)}
+                step={1000}
                 onValueChange={(values) => setAmount(values[0])}
                 className="py-4"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>10 USD</span>
-                <span>{Math.min(availableCredit, 500)} USD</span>
+                <span>KES 1,000</span>
+                <span>
+                  KES {Math.min(availableCredit, 70000).toLocaleString()}
+                </span>
               </div>
             </div>
 
             <div className="rounded-lg border p-4 bg-muted/30">
               <div className="flex justify-between mb-2">
-                <span className="text-sm">You'll receive</span>
+                <span className="text-sm">Total to repay</span>
                 <span className="text-sm font-bold">
-                  {loanAmount.toFixed(2)} {loanCurrency}
+                  KES {totalRepayment.toLocaleString()}
                 </span>
               </div>
               <div className="text-xs text-muted-foreground">
-                Exchange rate: 1 USD ={" "}
-                {(
-                  exchangeRates[loanCurrency] / exchangeRates[savingsCurrency]
-                ).toFixed(2)}{" "}
-                {loanCurrency}
+                5% interest rate over {term} days
               </div>
             </div>
           </>
@@ -180,7 +157,7 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-medium">
-                        {(totalRepayment / 3).toFixed(2)} {loanCurrency}
+                        KES {(totalRepayment / 3).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -197,16 +174,18 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">
-                    Security Amount
+                    Loan Amount
                   </span>
-                  <span className="text-sm font-medium">{amount} USD</span>
+                  <span className="text-sm font-medium">
+                    KES {amount.toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">
-                    You'll receive
+                    Total to repay
                   </span>
                   <span className="text-sm font-medium">
-                    {loanAmount.toFixed(2)} {loanCurrency}
+                    KES {totalRepayment.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -214,14 +193,6 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
                     Duration
                   </span>
                   <span className="text-sm font-medium">{term} days</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Total to repay
-                  </span>
-                  <span className="text-sm font-medium">
-                    {totalRepayment.toFixed(2)} {loanCurrency}
-                  </span>
                 </div>
               </div>
             </div>

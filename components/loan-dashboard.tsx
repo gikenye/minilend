@@ -13,10 +13,17 @@ import { useEffect, useState } from "react";
 import { CircleDollarSign, Wallet, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useWeb3 } from "@/contexts/useWeb3";
+import { KES_EXCHANGE_RATE, DEFAULT_CURRENCY } from "@/types/currencies";
 
 interface LoanDashboardProps {
   availableCredit: number;
-  activeLoan: any | null;
+  activeLoan?: {
+    amountLocal: number;
+    localCurrency: string;
+    termDays: number;
+    repaymentSchedule: any[];
+  } | null;
 }
 
 export function LoanDashboard({
@@ -25,6 +32,20 @@ export function LoanDashboard({
 }: LoanDashboardProps) {
   const [progress, setProgress] = useState(0);
   const router = useRouter();
+  const { getStableTokenBalance } = useWeb3();
+  const [balance, setBalance] = useState<string>("0");
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        const balance = await getStableTokenBalance(DEFAULT_CURRENCY);
+        setBalance(balance);
+      } catch (error) {
+        console.error("Error fetching balance:", error);
+      }
+    };
+    fetchBalance();
+  }, [getStableTokenBalance]);
 
   useEffect(() => {
     if (activeLoan) {
@@ -49,9 +70,7 @@ export function LoanDashboard({
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-lg">Your Loan Limit</CardTitle>
-              <CardDescription>
-                Based on your savings in MiniPay
-              </CardDescription>
+              <CardDescription>Based on your savings balance</CardDescription>
             </div>
             <Button
               variant="outline"
@@ -60,7 +79,7 @@ export function LoanDashboard({
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              Deposit
+              Add Money
             </Button>
           </div>
         </CardHeader>
@@ -68,14 +87,17 @@ export function LoanDashboard({
           <div className="flex items-center gap-2">
             <CircleDollarSign className="h-8 w-8 text-primary" />
             <div>
-              <div className="text-2xl font-bold">{availableCredit} USD</div>
-              <div className="text-xs text-muted-foreground">
-                ≈ {Math.round(availableCredit * 140)} KES
+              <div className="text-2xl font-bold">
+                KES {(Number(balance) * KES_EXCHANGE_RATE).toLocaleString()}
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <h2 className="text-lg font-semibold text-foreground mt-6 mb-2 text-center">
+        What do you wanna do today?
+      </h2>
 
       <div className="grid grid-cols-2 gap-4">
         {/* Current Loan Card */}
@@ -92,7 +114,8 @@ export function LoanDashboard({
             </CardHeader>
             <CardContent>
               <div className="text-base font-bold">
-                {activeLoan.amountLocal} {activeLoan.localCurrency}
+                {activeLoan.localCurrency}{" "}
+                {activeLoan.amountLocal.toLocaleString()}
               </div>
               <div className="text-xs text-muted-foreground">
                 Due in {activeLoan.termDays} days
@@ -127,7 +150,7 @@ export function LoanDashboard({
               <div className="text-sm">
                 Up to{" "}
                 <span className="font-bold">
-                  {Math.round(availableCredit * 140)} KES
+                  KES {(Number(balance) * KES_EXCHANGE_RATE).toLocaleString()}
                 </span>
               </div>
             )}
@@ -147,7 +170,9 @@ export function LoanDashboard({
           </CardHeader>
           <CardContent>
             <div className="text-sm">
-              <span className="font-bold">{availableCredit} USD</span>
+              <span className="font-bold">
+                KES {(Number(balance) * KES_EXCHANGE_RATE).toLocaleString()}
+              </span>
             </div>
           </CardContent>
         </Card>

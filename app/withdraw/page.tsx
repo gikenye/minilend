@@ -19,19 +19,21 @@ import {
   custom,
   parseUnits,
   formatEther,
-  hexToBigInt,
-  toHex,
   parseGwei,
 } from "viem";
-import { celo } from "viem/chains";
+import { celoAlfajores } from "viem/chains";
 import { useWeb3 } from "@/contexts/useWeb3";
+import {
+  KES_EXCHANGE_RATE,
+  MIN_WITHDRAWAL_KES,
+  DEFAULT_CURRENCY,
+} from "@/types/currencies";
 
-const STABLE_TOKEN_ADDRESS = "0x765DE816845861e75A25fCA122bb6898B8B1282a";
-const KES_EXCHANGE_RATE = 140;
-const MIN_WITHDRAWAL = 100; // Minimum withdrawal in KES
+const BASE_GAS = BigInt(21000);
 
 export default function WithdrawPage() {
-  const { address, publicClient } = useWeb3();
+  const { address, publicClient, getStableTokenBalance, sendStableToken } =
+    useWeb3();
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,17 +42,10 @@ export default function WithdrawPage() {
 
   const estimateWithdrawalFees = async () => {
     if (!address || !publicClient) return;
-
     try {
-      const gasLimit = await publicClient.estimateGas({
-        account: address as `0x${string}`,
-        to: STABLE_TOKEN_ADDRESS as `0x${string}`,
-        value: parseGwei("1"),
-        data: "0x",
-      });
-
       const gasPrice = await publicClient.getGasPrice();
-      const fees = formatEther(gasLimit * gasPrice);
+      const estimatedGas = BASE_GAS;
+      const fees = formatEther(estimatedGas * gasPrice);
       setEstimatedFees(fees);
     } catch (error) {
       console.error("Error estimating fees:", error);
@@ -60,25 +55,8 @@ export default function WithdrawPage() {
   const checkBalance = async () => {
     if (!address || !publicClient) return;
     try {
-      const balance = await publicClient.readContract({
-        address: STABLE_TOKEN_ADDRESS as `0x${string}`,
-        abi: [
-          {
-            constant: true,
-            inputs: [{ name: "accountOwner", type: "address" }],
-            name: "balanceOf",
-            outputs: [{ name: "", type: "uint256" }],
-            payable: false,
-            stateMutability: "view",
-            type: "function",
-          },
-        ],
-        functionName: "balanceOf",
-        args: [address as `0x${string}`],
-      });
-
-      const balanceInEthers = formatEther(balance);
-      setBalance(balanceInEthers);
+      const balance = await getStableTokenBalance(DEFAULT_CURRENCY);
+      setBalance(balance);
       await estimateWithdrawalFees();
     } catch (error) {
       console.error("Error fetching balance:", error);
@@ -92,62 +70,28 @@ export default function WithdrawPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!amount || !phone || !address || !publicClient || !window?.ethereum)
+      return;
+
     setIsSubmitting(true);
-
     try {
-      if (!window.ethereum?.isMiniPay) {
-        throw new Error("Please use MiniPay wallet");
-      }
-
-      if (!address) {
-        throw new Error("No wallet address found");
-      }
-
-      // Validate and format phone number to an Ethereum address using MiniPay registry
-      const phoneAddress = `0x${phone.replace(/[^0-9]/g, "")}` as `0x${string}`; // Basic transformation
-      if (!phoneAddress.match(/^0x[0-9a-fA-F]{40}$/)) {
-        throw new Error("Invalid phone number format");
-      }
-
-      const walletClient = createWalletClient({
-        chain: celo,
-        transport: custom(window.ethereum),
-      });
-
-      // Convert KES amount to cUSD
-      const cUSDAmount = (Number(amount) / KES_EXCHANGE_RATE).toFixed(2);
-      const amountWithFees = Number(cUSDAmount) + Number(estimatedFees);
+      const phoneAddress = "0x" + phone.slice(-40);
+      const stablecoinAmount = (Number(amount) / KES_EXCHANGE_RATE).toFixed(6);
+      const amountWithFees = Number(stablecoinAmount) + Number(estimatedFees);
 
       if (amountWithFees > Number(balance)) {
         throw new Error("Insufficient balance including fees");
       }
 
-      const hash = await walletClient.writeContract({
-        address: STABLE_TOKEN_ADDRESS as `0x${string}`,
-        abi: [
-          {
-            constant: false,
-            inputs: [
-              { name: "to", type: "address" },
-              { name: "value", type: "uint256" },
-            ],
-            name: "transfer",
-            outputs: [{ name: "", type: "bool" }],
-            payable: false,
-            stateMutability: "nonpayable",
-            type: "function",
-          },
-        ],
-        functionName: "transfer",
-        args: [phoneAddress, parseUnits(cUSDAmount, 18)],
-        account: address as `0x${string}`,
-      });
+      const hash = await sendStableToken(
+        DEFAULT_CURRENCY,
+        phoneAddress,
+        stablecoinAmount
+      );
 
-      const transaction = await publicClient.waitForTransactionReceipt({
-        hash,
-      });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-      if (transaction.status === "success") {
+      if (receipt.status === "success") {
         toast({
           title: "Success!",
           description: `KES ${amount} has been sent to ${phone}`,
@@ -199,14 +143,12 @@ export default function WithdrawPage() {
                   Available Balance
                 </div>
                 <div className="text-2xl font-bold">
-                  USD {availableBalance.toFixed(2)}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  ≈ KES {maxWithdrawal.toFixed(2)}
+                  KES {maxWithdrawal.toFixed(2)}
                 </div>
                 {Number(estimatedFees) > 0 && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    Estimated fee: {Number(estimatedFees).toFixed(4)} cUSD
+                    Estimated fee: KES{" "}
+                    {(Number(estimatedFees) * KES_EXCHANGE_RATE).toFixed(2)}
                   </div>
                 )}
               </div>
@@ -222,11 +164,11 @@ export default function WithdrawPage() {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
-                  min={MIN_WITHDRAWAL}
+                  min={MIN_WITHDRAWAL_KES}
                   max={maxWithdrawal}
                 />
                 <div className="text-xs text-muted-foreground">
-                  Min: KES {MIN_WITHDRAWAL} | Max: KES{" "}
+                  Min: KES {MIN_WITHDRAWAL_KES} | Max: KES{" "}
                   {maxWithdrawal.toFixed(2)}
                 </div>
               </div>
@@ -255,7 +197,7 @@ export default function WithdrawPage() {
                   !amount ||
                   !phone ||
                   Number(amount) > maxWithdrawal ||
-                  Number(amount) < MIN_WITHDRAWAL
+                  Number(amount) < MIN_WITHDRAWAL_KES
                 }
               >
                 {isSubmitting ? (

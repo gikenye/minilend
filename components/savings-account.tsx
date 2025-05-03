@@ -34,8 +34,8 @@ export function SavingsAccount() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       setBalance({
-        savings: "500.00",
-        available: "250.00",
+        savings: "70000.00",
+        available: "35000.00",
       });
     } catch (error) {
       console.error("Error fetching account balance:", error);
@@ -70,7 +70,7 @@ export function SavingsAccount() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-xl font-bold">
-                ${balance?.savings || "0.00"}
+                KES {balance?.savings || "0.00"}
               </div>
             )}
           </div>
@@ -82,7 +82,7 @@ export function SavingsAccount() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-xl font-bold">
-                ${balance?.available || "0.00"}
+                KES {balance?.available || "0.00"}
               </div>
             )}
           </div>

@@ -2,12 +2,11 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+import type { EthereumProvider } from '../types/minipay';
+
 declare global {
   interface Window {
-    ethereum?: {
-      isMiniPay?: boolean;
-      request: (args: { method: string }) => Promise<any>;
-    };
+    ethereum?: EthereumProvider;
   }
 }
 
