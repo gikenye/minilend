@@ -61,7 +61,7 @@ const NETWORK_CONFIG = {
 export function getAvailableCurrencies(
   networkType: "mainnet" | "testnet"
 ): Currency[] {
-  return networkType === "mainnet" ? MAINNET_CURRENCIES : TESTNET_CURRENCIES;
+  return Object.keys(NETWORK_CONFIG[networkType].stableTokenAddresses) as Currency[];
 }
 
 // Define the Web3ContextType interface
@@ -118,7 +118,7 @@ export const useWeb3Provider = () => {
 
   // Get the current stable token address based on network type and currency
   const getStableTokenAddress = (currency: string) => {
-    if (!SUPPORTED_CURRENCIES[currency]) {
+    if (!SUPPORTED_CURRENCIES[currency as Currency]) {
       throw new Error(`Unsupported currency: ${currency}`);
     }
 
