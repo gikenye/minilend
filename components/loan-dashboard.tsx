@@ -10,11 +10,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useEffect, useState } from "react";
-import { CircleDollarSign, Wallet, Plus } from "lucide-react";
+import { CircleDollarSign, Wallet, Plus, Clock, History } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { useLending } from "@/contexts/LendingContext";
-import { KES_EXCHANGE_RATE, DEFAULT_CURRENCY } from "@/types/currencies";
+import { CKES_EXCHANGE_RATE, DEFAULT_CURRENCY } from "@/types/currencies";
 
 interface LoanDashboardProps {
   availableCredit: number;
@@ -62,7 +62,7 @@ export function LoanDashboard({
 
           setCurrentLoan({
             amountLocal: principal,
-            localCurrency: "KES",
+            localCurrency: "cKES",
             termDays: 30,
             repaymentSchedule: [],
           });
@@ -100,8 +100,8 @@ export function LoanDashboard({
             <CircleDollarSign className="h-8 w-8 text-primary" />
             <div>
               <div className="text-2xl font-bold">
-                KES{" "}
-                {(Number(withdrawable) * KES_EXCHANGE_RATE).toLocaleString()}
+                cKES{" "}
+                {(Number(withdrawable) * CKES_EXCHANGE_RATE).toLocaleString()}
               </div>
             </div>
           </div>
@@ -126,8 +126,7 @@ export function LoanDashboard({
             </CardHeader>
             <CardContent>
               <div className="text-base font-bold">
-                {currentLoan.localCurrency}{" "}
-                {currentLoan.amountLocal.toLocaleString()}
+                cKES {currentLoan.amountLocal.toLocaleString()}
               </div>
               <div className="text-xs text-muted-foreground">
                 Due in {currentLoan.termDays} days
@@ -161,10 +160,10 @@ export function LoanDashboard({
               <div className="text-sm">
                 Up to{" "}
                 <span className="font-bold">
-                  KES{" "}
+                  cKES{" "}
                   {(
                     Number(withdrawable) *
-                    KES_EXCHANGE_RATE *
+                    CKES_EXCHANGE_RATE *
                     0.5
                   ).toLocaleString()}
                 </span>
@@ -186,8 +185,8 @@ export function LoanDashboard({
           <CardContent>
             <div className="text-sm">
               <span className="font-bold">
-                KES{" "}
-                {(Number(withdrawable) * KES_EXCHANGE_RATE).toLocaleString()}
+                cKES{" "}
+                {(Number(withdrawable) * CKES_EXCHANGE_RATE).toLocaleString()}
               </span>
             </div>
           </CardContent>
@@ -205,8 +204,38 @@ export function LoanDashboard({
             <div className="text-sm">
               <span className="font-bold text-green-600">
                 cKES{" "}
-                {(Number(balance) * 0.05 * KES_EXCHANGE_RATE).toLocaleString()}
+                {(Number(balance) * 0.05 * CKES_EXCHANGE_RATE).toLocaleString()}
               </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer transition-colors hover:bg-accent"
+          onClick={() => router.push("/loan-history")}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Loan History
+            </CardTitle>
+            <CardDescription className="text-xs">
+              View past transactions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">
+              {currentLoan ? (
+                <div className="flex items-center">
+                  <Clock className="h-4 w-4 mr-1" />
+                  Active loan in progress
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <Clock className="h-4 w-4 mr-1" />
+                  View all transactions
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

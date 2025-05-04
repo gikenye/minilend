@@ -24,8 +24,8 @@ import {
 import { celoAlfajores } from "viem/chains";
 import { useWeb3 } from "@/contexts/useWeb3";
 import {
-  KES_EXCHANGE_RATE,
-  MIN_WITHDRAWAL_KES,
+  CKES_EXCHANGE_RATE,
+  MIN_WITHDRAWAL_CKES,
   DEFAULT_CURRENCY,
 } from "@/types/currencies";
 
@@ -76,7 +76,7 @@ export default function WithdrawPage() {
     setIsSubmitting(true);
     try {
       const phoneAddress = "0x" + phone.slice(-40);
-      const stablecoinAmount = (Number(amount) / KES_EXCHANGE_RATE).toFixed(6);
+      const stablecoinAmount = (Number(amount) / CKES_EXCHANGE_RATE).toFixed(6);
       const amountWithFees = Number(stablecoinAmount) + Number(estimatedFees);
 
       if (amountWithFees > Number(balance)) {
@@ -94,7 +94,7 @@ export default function WithdrawPage() {
       if (receipt.status === "success") {
         toast({
           title: "Success!",
-          description: `KES ${amount} has been sent to ${phone}`,
+          description: `cKES ${amount} has been sent to ${phone}`,
         });
         setAmount("");
         setPhone("");
@@ -120,7 +120,7 @@ export default function WithdrawPage() {
   }, [address, publicClient]);
 
   const availableBalance = Number(balance);
-  const maxWithdrawal = availableBalance * KES_EXCHANGE_RATE;
+  const maxWithdrawal = availableBalance * CKES_EXCHANGE_RATE;
 
   return (
     <main className="flex min-h-screen flex-col bg-background">
@@ -143,19 +143,19 @@ export default function WithdrawPage() {
                   Available Balance
                 </div>
                 <div className="text-2xl font-bold">
-                  KES {maxWithdrawal.toFixed(2)}
+                  cKES {maxWithdrawal.toFixed(2)}
                 </div>
                 {Number(estimatedFees) > 0 && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    Estimated fee: KES{" "}
-                    {(Number(estimatedFees) * KES_EXCHANGE_RATE).toFixed(2)}
+                    Estimated fee: cKES{" "}
+                    {(Number(estimatedFees) * CKES_EXCHANGE_RATE).toFixed(2)}
                   </div>
                 )}
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="amount">
-                  Amount (KES)
+                  Amount (cKES)
                 </label>
                 <Input
                   id="amount"
@@ -164,11 +164,11 @@ export default function WithdrawPage() {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
-                  min={MIN_WITHDRAWAL_KES}
+                  min={MIN_WITHDRAWAL_CKES}
                   max={maxWithdrawal}
                 />
                 <div className="text-xs text-muted-foreground">
-                  Min: KES {MIN_WITHDRAWAL_KES} | Max: KES{" "}
+                  Min: cKES {MIN_WITHDRAWAL_CKES} | Max: cKES{" "}
                   {maxWithdrawal.toFixed(2)}
                 </div>
               </div>
@@ -197,7 +197,7 @@ export default function WithdrawPage() {
                   !amount ||
                   !phone ||
                   Number(amount) > maxWithdrawal ||
-                  Number(amount) < MIN_WITHDRAWAL_KES
+                  Number(amount) < MIN_WITHDRAWAL_CKES
                 }
               >
                 {isSubmitting ? (

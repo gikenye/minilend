@@ -14,7 +14,7 @@ import { ArrowLeft, CheckCircle, Home } from "lucide-react";
 import { MiniPayHeader } from "@/components/mini-pay-header";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { formatEther } from "viem";
-import { KES_EXCHANGE_RATE } from "@/types/currencies";
+import { CKES_EXCHANGE_RATE } from "@/types/currencies";
 import type { Log } from "viem";
 
 interface LoanHistoryItem {
@@ -103,7 +103,7 @@ export default function LoanHistoryPage() {
 
           return {
             id: `${event.blockNumber}-${event.args?.token}`,
-            amountLocal: loanAmount * KES_EXCHANGE_RATE,
+            amountLocal: loanAmount * CKES_EXCHANGE_RATE,
             localCurrency: "cKES",
             termDays: 30,
             status: repayment ? "completed" : "active",

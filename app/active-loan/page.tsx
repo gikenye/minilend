@@ -139,7 +139,7 @@ export default function ActiveLoanPage() {
           <CardContent className="space-y-4">
             <div>
               <div className="text-3xl font-bold">
-                KES {Number(loan.principal).toLocaleString()}
+                cKES {Number(loan.principal).toLocaleString()}
               </div>
               <div className="text-sm text-muted-foreground">
                 Started on{" "}
@@ -167,7 +167,7 @@ export default function ActiveLoanPage() {
               <div>
                 <div className="text-sm text-muted-foreground">Amount Due</div>
                 <div className="font-medium">
-                  KES {loan.paymentAmount?.toLocaleString()}
+                  cKES {loan.paymentAmount?.toLocaleString()}
                 </div>
               </div>
             </div>
@@ -202,7 +202,7 @@ export default function ActiveLoanPage() {
                         <div>
                           <div className="font-medium">Payment {index + 1}</div>
                           <div className="text-sm text-muted-foreground">
-                            KES {loan.paymentAmount?.toLocaleString()}
+                            cKES {loan.paymentAmount?.toLocaleString()}
                           </div>
                         </div>
                       </div>

@@ -42,7 +42,7 @@ export function Dashboard() {
           setActiveLoan({
             id: "current",
             amountLocal: Number(loanData.principal),
-            localCurrency: "KES",
+            localCurrency: "cKES",
             termDays: 30,
             status: "active",
             repaymentSchedule: [

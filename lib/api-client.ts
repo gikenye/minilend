@@ -52,14 +52,14 @@ const MOCK_LOAN_HISTORY = [
   {
     id: "1",
     amount: 500,
-    currency: DEFAULT_CURRENCY,
+    currency: "cKES",
     status: "completed",
     date: "2023-05-15",
   },
   {
     id: "2",
     amount: 300,
-    currency: DEFAULT_CURRENCY,
+    currency: "cKES",
     status: "active",
     date: "2023-06-20",
   },

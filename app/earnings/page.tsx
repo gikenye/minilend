@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, Home, TrendingUp, CircleDollarSign } from "lucide-react";
 import { useLending } from "@/contexts/LendingContext";
 import { useWeb3 } from "@/contexts/useWeb3";
-import { KES_EXCHANGE_RATE } from "@/types/currencies";
+import { CKES_EXCHANGE_RATE } from "@/types/currencies";
 
 interface RecentTransaction {
   id: number;
@@ -32,7 +32,7 @@ export default function EarningsPage() {
     totalEarned: 0,
     activeLoans: 0,
     totalLent: 0,
-    currency: "KES",
+    currency: "cKES",
     recentTransactions: [] as RecentTransaction[],
   });
 
@@ -42,16 +42,16 @@ export default function EarningsPage() {
         const yields = await getYields();
 
         // Convert yields to local currency
-        const grossYield = Number(yields.grossYield) * KES_EXCHANGE_RATE;
-        const netYield = Number(yields.netYield) * KES_EXCHANGE_RATE;
+        const grossYield = Number(yields.grossYield) * CKES_EXCHANGE_RATE;
+        const netYield = Number(yields.netYield) * CKES_EXCHANGE_RATE;
         const usedForLoanRepayment =
-          Number(yields.usedForLoanRepayment) * KES_EXCHANGE_RATE;
+          Number(yields.usedForLoanRepayment) * CKES_EXCHANGE_RATE;
 
         setEarnings({
           totalEarned: netYield,
           activeLoans: 1, // Could be calculated from active loans in future
           totalLent: grossYield,
-          currency: "KES",
+          currency: "cKES",
           recentTransactions: [
             {
               id: 1,
@@ -105,8 +105,11 @@ export default function EarningsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
-                    {earnings.currency} {earnings.totalEarned.toLocaleString()}
+                  <div className="text-2xl font-bold">
+                    cKES {earnings.totalEarned.toLocaleString()}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Total earnings from interest
                   </div>
                 </CardContent>
               </Card>

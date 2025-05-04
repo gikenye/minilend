@@ -14,7 +14,7 @@ export type TestnetCurrency = (typeof TESTNET_CURRENCIES)[number];
 export type MainnetCurrency = (typeof MAINNET_CURRENCIES)[number];
 
 // Constants used across the app
-export const DEFAULT_CURRENCY = "cUSD"; // Changed from cKES to cUSD since it works on both networks
-export const KES_EXCHANGE_RATE = 140; // Rate for converting between cUSD and KES
+export const DEFAULT_CURRENCY = "cUSD";
+export const CKES_EXCHANGE_RATE = 140; // Updated from KES_EXCHANGE_RATE
 export const MIN_BALANCE_THRESHOLD = 0.01;
-export const MIN_WITHDRAWAL_KES = 100;
+export const MIN_WITHDRAWAL_CKES = 100; // Updated from MIN_WITHDRAWAL_KES

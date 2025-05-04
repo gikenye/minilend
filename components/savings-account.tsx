@@ -15,7 +15,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { useLending } from "@/contexts/LendingContext";
-import { KES_EXCHANGE_RATE, DEFAULT_CURRENCY } from "@/types/currencies";
+import { CKES_EXCHANGE_RATE, DEFAULT_CURRENCY } from "@/types/currencies";
 
 interface AccountBalance {
   totalSavings: string;
@@ -40,9 +40,9 @@ export function SavingsAccount() {
       ]);
 
       setBalance({
-        totalSavings: (Number(tokenBalance) * KES_EXCHANGE_RATE).toFixed(2),
+        totalSavings: (Number(tokenBalance) * CKES_EXCHANGE_RATE).toFixed(2),
         availableForWithdraw: (
-          Number(withdrawable.withdrawable) * KES_EXCHANGE_RATE
+          Number(withdrawable.withdrawable) * CKES_EXCHANGE_RATE
         ).toFixed(2),
       });
     } catch (error) {
@@ -78,7 +78,7 @@ export function SavingsAccount() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-xl font-bold">
-                KES {balance?.totalSavings || "0.00"}
+                cKES {balance?.totalSavings || "0.00"}
               </div>
             )}
           </div>
@@ -90,7 +90,7 @@ export function SavingsAccount() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-xl font-bold">
-                KES {balance?.availableForWithdraw || "0.00"}
+                cKES {balance?.availableForWithdraw || "0.00"}
               </div>
             )}
           </div>

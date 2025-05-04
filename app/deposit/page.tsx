@@ -23,7 +23,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "@/components/ui/use-toast";
 import {
   MIN_BALANCE_THRESHOLD,
-  KES_EXCHANGE_RATE,
+  CKES_EXCHANGE_RATE,
   DEFAULT_CURRENCY,
 } from "@/types/currencies";
 
@@ -117,12 +117,12 @@ export default function DepositPage() {
           <CardContent className="space-y-3">
             <div>
               <div className="text-2xl font-bold">
-                cKES {(Number(balance) * KES_EXCHANGE_RATE).toFixed(2)}
+                cKES {(Number(balance) * CKES_EXCHANGE_RATE).toFixed(2)}
               </div>
               {Number(estimatedFees) > 0 && (
                 <div className="text-xs text-muted-foreground mt-1">
                   Estimated fee: cKES{" "}
-                  {(Number(estimatedFees) * KES_EXCHANGE_RATE).toFixed(2)}
+                  {(Number(estimatedFees) * CKES_EXCHANGE_RATE).toFixed(2)}
                 </div>
               )}
             </div>

@@ -151,7 +151,7 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
                   Based on your credit score of {creditScore.score}, you can
                   borrow up to{" "}
                   <span className="font-medium">
-                    KES {Math.round(maxLoanAmount).toLocaleString()}
+                    cKES {Math.round(maxLoanAmount).toLocaleString()}
                   </span>
                 </div>
               </>
@@ -190,8 +190,8 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
                 className="py-4"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>KES 1,000</span>
-                <span>KES {Math.round(maxLoanAmount).toLocaleString()}</span>
+                <span>cKES 1,000</span>
+                <span>cKES {Math.round(maxLoanAmount).toLocaleString()}</span>
               </div>
             </div>
 
@@ -199,7 +199,7 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
               <div className="flex justify-between mb-2">
                 <span className="text-sm">Total to repay</span>
                 <span className="text-sm font-bold">
-                  KES {totalRepayment.toLocaleString()}
+                  cKES {totalRepayment.toLocaleString()}
                 </span>
               </div>
               <div className="text-xs text-muted-foreground">
@@ -244,7 +244,7 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-medium">
-                        KES {(totalRepayment / 3).toLocaleString()}
+                        cKES {(totalRepayment / 3).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -264,7 +264,7 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
                     Loan Amount
                   </span>
                   <span className="text-sm font-medium">
-                    KES {amount.toLocaleString()}
+                    cKES {amount.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -272,7 +272,7 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
                     Total to repay
                   </span>
                   <span className="text-sm font-medium">
-                    KES {totalRepayment.toLocaleString()}
+                    cKES {totalRepayment.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between">
