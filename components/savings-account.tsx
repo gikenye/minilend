@@ -1,26 +1,31 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
+  CardContent,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw } from "lucide-react";
-import { useAuth } from "@/contexts/auth-context";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/auth-context";
+import { useWeb3 } from "@/contexts/useWeb3";
+import { useLending } from "@/contexts/LendingContext";
+import { KES_EXCHANGE_RATE, DEFAULT_CURRENCY } from "@/types/currencies";
 
 interface AccountBalance {
-  savings: string;
-  available: string;
+  totalSavings: string;
+  availableForWithdraw: string;
 }
 
 export function SavingsAccount() {
   const { user } = useAuth();
+  const { getStableTokenBalance } = useWeb3();
+  const { getWithdrawable } = useLending();
   const [balance, setBalance] = useState<AccountBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -29,13 +34,16 @@ export function SavingsAccount() {
 
     setIsLoading(true);
     try {
-      // In a real implementation, this would call the API
-      // For now, we'll simulate a response
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const [tokenBalance, withdrawable] = await Promise.all([
+        getStableTokenBalance(DEFAULT_CURRENCY),
+        getWithdrawable(),
+      ]);
 
       setBalance({
-        savings: "70000.00",
-        available: "35000.00",
+        totalSavings: (Number(tokenBalance) * KES_EXCHANGE_RATE).toFixed(2),
+        availableForWithdraw: (
+          Number(withdrawable.withdrawable) * KES_EXCHANGE_RATE
+        ).toFixed(2),
       });
     } catch (error) {
       console.error("Error fetching account balance:", error);
@@ -70,19 +78,19 @@ export function SavingsAccount() {
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-xl font-bold">
-                KES {balance?.savings || "0.00"}
+                KES {balance?.totalSavings || "0.00"}
               </div>
             )}
           </div>
           <div className="space-y-2">
             <div className="text-sm text-muted-foreground">
-              Available for Loans
+              Available for Withdrawal
             </div>
             {isLoading ? (
               <Skeleton className="h-8 w-20" />
             ) : (
               <div className="text-xl font-bold">
-                KES {balance?.available || "0.00"}
+                KES {balance?.availableForWithdraw || "0.00"}
               </div>
             )}
           </div>

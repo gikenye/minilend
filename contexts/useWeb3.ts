@@ -23,6 +23,21 @@ import {
 import { celo, celoAlfajores } from "viem/chains";
 import { SUPPORTED_CURRENCIES, type Currency } from "@/types/currencies";
 
+export interface EthereumProvider {
+  request: (args: any) => Promise<any>;
+  on: (event: string, handler: (...args: any[]) => void) => void;
+  removeListener: (event: string, handler: (...args: any[]) => void) => void;
+  isMetaMask?: boolean;
+  isMiniPay?: boolean;
+}
+
+// A mapping of currency symbols to their stablecoin contract addresses
+export const STABLECOIN_ADDRESSES: Record<string, `0x${string}`> = {
+  USDC: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" as const,
+  USDT: "0xdac17f958d2ee523a2206206994597c13d831ec7" as const,
+  cUSD: "0x765de816845861e75a25fca122bb6898b8b1282a" as const,
+};
+
 // Initialize public clients for both networks
 const mainnetClient = createPublicClient({
   chain: celo,
@@ -61,14 +76,21 @@ const NETWORK_CONFIG = {
 export function getAvailableCurrencies(
   networkType: "mainnet" | "testnet"
 ): Currency[] {
-  return Object.keys(NETWORK_CONFIG[networkType].stableTokenAddresses) as Currency[];
+  return Object.keys(
+    NETWORK_CONFIG[networkType].stableTokenAddresses
+  ) as Currency[];
 }
 
 // Define the Web3ContextType interface
-export interface Web3ContextType {
-  address: string | null;
-  publicClient: PublicClient;
-  getUserAddress: () => Promise<`0x${string}`>;
+export type Web3ContextType = {
+  address: `0x${string}` | undefined;
+  publicClient: PublicClient | undefined;
+  walletClient: WalletClient | undefined;
+  getStableTokenAddress: (currency: string) => `0x${string}`;
+  networkType: "mainnet" | "testnet";
+  switchNetwork: (network: "mainnet" | "testnet") => Promise<boolean>;
+  isMiniPay: boolean;
+  getUserAddress: () => Promise<string | null>;
   sendStableToken: (
     currency: string,
     to: string,
@@ -79,11 +101,8 @@ export interface Web3ContextType {
     currency: string,
     addressToCheck?: string
   ) => Promise<string>;
-  isMiniPay: boolean;
-  networkType: "mainnet" | "testnet";
-  switchNetwork: (network: "mainnet" | "testnet") => Promise<boolean>;
   availableCurrencies: Currency[];
-}
+};
 
 export const Web3Context = createContext<Web3ContextType | undefined>(
   undefined
@@ -104,9 +123,13 @@ export const useWeb3Provider = () => {
   const [networkType, setNetworkType] = useState<"mainnet" | "testnet">(
     "testnet"
   );
-  const [publicClient, setPublicClient] = useState<PublicClient>(
-    () => testnetClient
-  );
+  const [publicClient, setPublicClient] = useState<PublicClient>(() => {
+    // Start with testnet by default
+    return createPublicClient({
+      chain: celoAlfajores,
+      transport: http("https://alfajores-forno.celo-testnet.org"),
+    }) as unknown as PublicClient;
+  });
   const [availableCurrencies, setAvailableCurrencies] = useState<Currency[]>(
     getAvailableCurrencies("testnet")
   );
@@ -117,7 +140,7 @@ export const useWeb3Provider = () => {
   }, [networkType]);
 
   // Get the current stable token address based on network type and currency
-  const getStableTokenAddress = (currency: string) => {
+  const getStableTokenAddress = (currency: string): `0x${string}` => {
     if (!SUPPORTED_CURRENCIES[currency as Currency]) {
       throw new Error(`Unsupported currency: ${currency}`);
     }
@@ -129,7 +152,8 @@ export const useWeb3Provider = () => {
       );
     }
 
-    return addresses[currency as keyof typeof addresses];
+    const address = addresses[currency as keyof typeof addresses];
+    return address as `0x${string}`;
   };
 
   const getCurrentNetwork = async () => {
@@ -379,7 +403,6 @@ export const useWeb3Provider = () => {
       if (!userAddress) {
         throw new Error("No address provided");
       }
-
       // Defensive: ensure currency is supported on current network
       if (!availableCurrencies.includes(currency as Currency)) {
         throw new Error(
@@ -388,19 +411,26 @@ export const useWeb3Provider = () => {
       }
 
       const StableTokenContract = getContract({
-        abi: stableTokenABI,
-        address: getStableTokenAddress(currency) as `0x${string}`,
-        client: publicClient,
+        abi: [
+          {
+            constant: true,
+            inputs: [{ name: "account", type: "address" }],
+            name: "balanceOf",
+            outputs: [{ name: "", type: "uint256" }],
+            payable: false,
+            stateMutability: "view",
+            type: "function",
+          },
+        ],
+        address: getStableTokenAddress(currency),
+        publicClient,
       });
 
       const balanceInBigNumber = await StableTokenContract.read.balanceOf([
         userAddress as `0x${string}`,
       ]);
 
-      const balanceInWei = balanceInBigNumber.toString();
-      const balanceInEthers = formatEther(BigInt(balanceInWei));
-
-      return balanceInEthers;
+      return formatEther(balanceInBigNumber);
     } catch (error) {
       console.error(`Error getting ${currency} balance:`, error);
       throw error;
@@ -429,6 +459,7 @@ export const useWeb3Provider = () => {
       }
     },
     availableCurrencies,
+    getStableTokenAddress,
   };
 };
 

@@ -12,29 +12,100 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { MiniPayHeader } from "@/components/mini-pay-header";
 import { Home, Clock, CheckCircle, ArrowRight } from "lucide-react";
-
-const DEMO_LOAN = {
-  amountLocal: 50000,
-  localCurrency: "KES",
-  termDays: 30,
-  startDate: "2025-04-15",
-  nextPaymentDate: "2025-05-15",
-  totalPayments: 3,
-  paidPayments: 1,
-  paymentAmount: 17500, // 50000 + 5% interest / 3 payments
-  status: "active",
-};
+import { useLending } from "@/contexts/LendingContext";
+import { toast } from "@/components/ui/use-toast";
 
 export default function ActiveLoanPage() {
-  const [loan, setLoan] = useState(DEMO_LOAN);
+  const { getUserLoan, repayLoan } = useLending();
+  const [loan, setLoan] = useState<{
+    active: boolean;
+    principal: string;
+    interestAccrued: string;
+    lastUpdate: number;
+    // Additional UI state
+    paymentAmount?: number;
+    paidPayments?: number;
+    totalPayments?: number;
+    nextPaymentDate?: string;
+  } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const paidProgress = (loan.paidPayments / loan.totalPayments) * 100;
-    setProgress(paidProgress);
-  }, [loan]);
+    const fetchLoanData = async () => {
+      try {
+        const loanData = await getUserLoan();
+        if (loanData && loanData.active) {
+          const principalAmount = Number(loanData.principal);
+          const interestAmount = Number(loanData.interestAccrued);
+          const totalAmount = principalAmount + interestAmount;
+          const paymentPerInstallment = totalAmount / 3;
 
-  const formatDate = (dateString: string) => {
+          // Calculate paid payments based on remaining principal
+          const remainingPrincipal = principalAmount;
+          const paidAmount = totalAmount - remainingPrincipal;
+          const paidPayments = Math.floor((paidAmount / totalAmount) * 3);
+
+          setLoan({
+            ...loanData,
+            paymentAmount: paymentPerInstallment,
+            paidPayments,
+            totalPayments: 3,
+            nextPaymentDate: new Date(
+              Number(loanData.lastUpdate) * 1000 + 30 * 24 * 60 * 60 * 1000
+            ).toISOString(),
+          });
+
+          setProgress((paidPayments / 3) * 100);
+        }
+      } catch (error) {
+        console.error("Error fetching loan:", error);
+        toast({
+          title: "Error",
+          description: "Could not fetch loan details",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLoanData();
+  }, [getUserLoan]);
+
+  const handleRepayment = async () => {
+    try {
+      if (!loan?.paymentAmount) {
+        throw new Error("Payment amount not available");
+      }
+      const hash = await repayLoan(loan.paymentAmount.toString());
+      toast({
+        title: "Payment Processing",
+        description: "Your payment is being processed. Transaction: " + hash,
+      });
+      // Refresh loan data
+      const updatedLoan = await getUserLoan();
+      if (updatedLoan) {
+        setLoan((prevLoan) => ({
+          ...updatedLoan,
+          paymentAmount: prevLoan?.paymentAmount,
+          paidPayments: (prevLoan?.paidPayments || 0) + 1,
+          totalPayments: prevLoan?.totalPayments,
+          nextPaymentDate: prevLoan?.nextPaymentDate,
+        }));
+      }
+    } catch (error) {
+      console.error("Error processing payment:", error);
+      toast({
+        title: "Error",
+        description: "Could not process payment. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return "Not available";
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
@@ -42,13 +113,24 @@ export default function ActiveLoanPage() {
     });
   };
 
+  if (!loan || !loan.active) {
+    return (
+      <main className="flex min-h-screen flex-col bg-background">
+        <MiniPayHeader />
+        <div className="container px-4 py-6 mx-auto space-y-6 max-w-md">
+          <h1 className="text-2xl font-bold text-foreground">No Active Loan</h1>
+          <p>You currently don't have any active loans.</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex min-h-screen flex-col bg-background">
       <MiniPayHeader />
       <div className="container px-4 py-6 mx-auto space-y-6 max-w-md">
         <h1 className="text-2xl font-bold text-foreground">Current Loan</h1>
 
-        {/* Loan Overview Card */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Loan Overview</CardTitle>
@@ -57,10 +139,11 @@ export default function ActiveLoanPage() {
           <CardContent className="space-y-4">
             <div>
               <div className="text-3xl font-bold">
-                {loan.localCurrency} {loan.amountLocal.toLocaleString()}
+                KES {Number(loan.principal).toLocaleString()}
               </div>
               <div className="text-sm text-muted-foreground">
-                Started on {formatDate(loan.startDate)}
+                Started on{" "}
+                {formatDate(new Date(loan.lastUpdate * 1000).toISOString())}
               </div>
             </div>
 
@@ -84,14 +167,13 @@ export default function ActiveLoanPage() {
               <div>
                 <div className="text-sm text-muted-foreground">Amount Due</div>
                 <div className="font-medium">
-                  {loan.localCurrency} {loan.paymentAmount.toLocaleString()}
+                  KES {loan.paymentAmount?.toLocaleString()}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Payment Schedule Card */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Payment Schedule</CardTitle>
@@ -99,40 +181,41 @@ export default function ActiveLoanPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {Array.from({ length: loan.totalPayments }).map((_, index) => {
-                const isPaid = index < loan.paidPayments;
-                const isNext = index === loan.paidPayments;
+              {Array.from({ length: loan.totalPayments || 0 }).map(
+                (_, index) => {
+                  const isPaid = index < (loan.paidPayments || 0);
+                  const isNext = index === (loan.paidPayments || 0);
 
-                return (
-                  <div
-                    key={index}
-                    className={`flex items-center justify-between p-3 rounded-lg border ${
-                      isNext ? "bg-muted/30" : ""
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {isPaid ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <Clock className="h-5 w-5 text-muted-foreground" />
-                      )}
-                      <div>
-                        <div className="font-medium">Payment {index + 1}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {loan.localCurrency}{" "}
-                          {loan.paymentAmount.toLocaleString()}
+                  return (
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        isNext ? "bg-muted/30" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {isPaid ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <Clock className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <div className="font-medium">Payment {index + 1}</div>
+                          <div className="text-sm text-muted-foreground">
+                            KES {loan.paymentAmount?.toLocaleString()}
+                          </div>
                         </div>
                       </div>
+                      {isNext && (
+                        <Button size="sm" onClick={() => handleRepayment()}>
+                          Pay Now
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                    {isNext && (
-                      <Button size="sm">
-                        Pay Now
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                }
+              )}
             </div>
           </CardContent>
         </Card>

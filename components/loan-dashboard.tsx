@@ -11,9 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useEffect, useState } from "react";
 import { CircleDollarSign, Wallet, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useWeb3 } from "@/contexts/useWeb3";
+import { useLending } from "@/contexts/LendingContext";
 import { KES_EXCHANGE_RATE, DEFAULT_CURRENCY } from "@/types/currencies";
 
 interface LoanDashboardProps {
@@ -33,38 +33,50 @@ export function LoanDashboard({
   const [progress, setProgress] = useState(0);
   const router = useRouter();
   const { getStableTokenBalance } = useWeb3();
+  const { getWithdrawable, getUserLoan } = useLending();
   const [balance, setBalance] = useState<string>("0");
+  const [withdrawable, setWithdrawable] = useState<string>("0");
+  const [currentLoan, setCurrentLoan] = useState(activeLoan);
 
   useEffect(() => {
-    const fetchBalance = async () => {
+    const fetchBalances = async () => {
       try {
-        const balance = await getStableTokenBalance(DEFAULT_CURRENCY);
-        setBalance(balance);
+        const [balanceResult, withdrawableResult, loanResult] =
+          await Promise.all([
+            getStableTokenBalance(DEFAULT_CURRENCY),
+            getWithdrawable(),
+            getUserLoan(),
+          ]);
+
+        setBalance(balanceResult);
+        setWithdrawable(withdrawableResult.withdrawable);
+
+        if (loanResult && loanResult.active) {
+          const principal = Number(loanResult.principal);
+          const interest = Number(loanResult.interestAccrued);
+          const total = principal + interest;
+
+          // Calculate progress based on remaining principal
+          const progressPercent = ((total - principal) / total) * 100;
+          setProgress(Math.min(progressPercent, 100));
+
+          setCurrentLoan({
+            amountLocal: principal,
+            localCurrency: "KES",
+            termDays: 30,
+            repaymentSchedule: [],
+          });
+        }
       } catch (error) {
-        console.error("Error fetching balance:", error);
+        console.error("Error fetching balances:", error);
       }
     };
-    fetchBalance();
-  }, [getStableTokenBalance]);
 
-  useEffect(() => {
-    if (activeLoan) {
-      const paidPayments = activeLoan.repaymentSchedule.filter(
-        (p: any) => p.status === "paid"
-      ).length;
-      const totalPayments = activeLoan.repaymentSchedule.length;
-      const calculatedProgress = Math.round(
-        (paidPayments / totalPayments) * 100
-      );
-
-      const timer = setTimeout(() => setProgress(calculatedProgress), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [activeLoan]);
+    fetchBalances();
+  }, [getStableTokenBalance, getWithdrawable, getUserLoan]);
 
   return (
     <div className="space-y-4">
-      {/* Loan Limit Card */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -88,7 +100,8 @@ export function LoanDashboard({
             <CircleDollarSign className="h-8 w-8 text-primary" />
             <div>
               <div className="text-2xl font-bold">
-                KES {(Number(balance) * KES_EXCHANGE_RATE).toLocaleString()}
+                KES{" "}
+                {(Number(withdrawable) * KES_EXCHANGE_RATE).toLocaleString()}
               </div>
             </div>
           </div>
@@ -100,8 +113,7 @@ export function LoanDashboard({
       </h2>
 
       <div className="grid grid-cols-2 gap-4">
-        {/* Current Loan Card */}
-        {activeLoan && (
+        {currentLoan && (
           <Card
             className="cursor-pointer transition-colors hover:bg-accent"
             onClick={() => router.push("/active-loan")}
@@ -114,17 +126,16 @@ export function LoanDashboard({
             </CardHeader>
             <CardContent>
               <div className="text-base font-bold">
-                {activeLoan.localCurrency}{" "}
-                {activeLoan.amountLocal.toLocaleString()}
+                {currentLoan.localCurrency}{" "}
+                {currentLoan.amountLocal.toLocaleString()}
               </div>
               <div className="text-xs text-muted-foreground">
-                Due in {activeLoan.termDays} days
+                Due in {currentLoan.termDays} days
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Get Money Card */}
         <Card
           className="cursor-pointer transition-colors hover:bg-accent"
           onClick={() => router.push("/apply-loan")}
@@ -139,25 +150,29 @@ export function LoanDashboard({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {activeLoan ? (
+            {currentLoan ? (
               <>
                 <Progress value={progress} className="h-2" />
                 <div className="mt-2 text-xs text-muted-foreground">
-                  {progress}% repaid
+                  {Math.round(progress)}% repaid
                 </div>
               </>
             ) : (
               <div className="text-sm">
                 Up to{" "}
                 <span className="font-bold">
-                  KES {(Number(balance) * KES_EXCHANGE_RATE).toLocaleString()}
+                  KES{" "}
+                  {(
+                    Number(withdrawable) *
+                    KES_EXCHANGE_RATE *
+                    0.5
+                  ).toLocaleString()}
                 </span>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Cash Out Card */}
         <Card
           className="cursor-pointer transition-colors hover:bg-accent"
           onClick={() => router.push("/withdraw")}
@@ -171,13 +186,13 @@ export function LoanDashboard({
           <CardContent>
             <div className="text-sm">
               <span className="font-bold">
-                KES {(Number(balance) * KES_EXCHANGE_RATE).toLocaleString()}
+                KES{" "}
+                {(Number(withdrawable) * KES_EXCHANGE_RATE).toLocaleString()}
               </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Rewards Card */}
         <Card
           className="cursor-pointer transition-colors hover:bg-accent"
           onClick={() => router.push("/earnings")}
@@ -188,7 +203,10 @@ export function LoanDashboard({
           </CardHeader>
           <CardContent>
             <div className="text-sm">
-              <span className="font-bold text-green-600">450 KES</span>
+              <span className="font-bold text-green-600">
+                cKES{" "}
+                {(Number(balance) * 0.05 * KES_EXCHANGE_RATE).toLocaleString()}
+              </span>
             </div>
           </CardContent>
         </Card>

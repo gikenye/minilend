@@ -15,8 +15,20 @@ type CreditFactor = {
   color: string;
 };
 
+interface CreditScoreBreakdown {
+  repaymentHistory: number;
+  transactionFrequency: number;
+  savingsPattern: number;
+  accountAge: number;
+}
+
+interface CreditScoreData {
+  score: number;
+  breakdown: CreditScoreBreakdown;
+}
+
 interface CreditRadarProps {
-  creditScore: any | null;
+  creditScore: CreditScoreData | null;
 }
 
 export function CreditRadar({ creditScore }: CreditRadarProps) {
@@ -36,19 +48,14 @@ export function CreditRadar({ creditScore }: CreditRadarProps) {
             color: "hsl(var(--primary))",
           },
           {
-            name: "Account Activity",
+            name: "Activity Level",
             value: creditScore.breakdown.transactionFrequency,
             color: "hsl(var(--primary) / 0.8)",
           },
           {
-            name: "Savings Level",
+            name: "Savings Pattern",
             value: creditScore.breakdown.savingsPattern,
             color: "hsl(var(--primary) / 0.6)",
-          },
-          {
-            name: "Trust Score",
-            value: creditScore.breakdown.socialConnections,
-            color: "hsl(var(--primary) / 0.9)",
           },
           {
             name: "Account Age",
@@ -80,58 +87,64 @@ export function CreditRadar({ creditScore }: CreditRadarProps) {
     // Draw radar background
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.fillStyle = "hsl(var(--muted) / 0.3)";
-    ctx.fill();
+    ctx.strokeStyle = "hsl(var(--border))";
+    ctx.stroke();
 
-    // Draw radar lines
-    const numFactors = factors.length;
-    ctx.strokeStyle = "hsl(var(--muted))";
-    ctx.lineWidth = 1;
-
-    for (let i = 0; i < numFactors; i++) {
-      const angle = (i / numFactors) * Math.PI * 2;
+    // Draw radar rings
+    for (let i = 1; i <= 4; i++) {
       ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(
-        centerX + radius * Math.cos(angle),
-        centerY + radius * Math.sin(angle)
-      );
+      ctx.arc(centerX, centerY, (radius * i) / 4, 0, Math.PI * 2);
+      ctx.strokeStyle = "hsl(var(--border) / 0.5)";
       ctx.stroke();
     }
 
-    // Draw data area
-    ctx.beginPath();
-    for (let i = 0; i < numFactors; i++) {
-      const angle = (i / numFactors) * Math.PI * 2;
-      const value = factors[i].value;
-      const pointX = centerX + radius * value * Math.cos(angle);
-      const pointY = centerY + radius * value * Math.sin(angle);
+    // Draw factor axes
+    factors.forEach((factor, i) => {
+      const angle = (i / factors.length) * Math.PI * 2 - Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(
+        centerX + Math.cos(angle) * radius,
+        centerY + Math.sin(angle) * radius
+      );
+      ctx.strokeStyle = "hsl(var(--border))";
+      ctx.stroke();
+    });
 
+    // Draw factor values
+    ctx.beginPath();
+    factors.forEach((factor, i) => {
+      const angle = (i / factors.length) * Math.PI * 2 - Math.PI / 2;
+      const point = {
+        x: centerX + Math.cos(angle) * radius * factor.value,
+        y: centerY + Math.sin(angle) * radius * factor.value,
+      };
       if (i === 0) {
-        ctx.moveTo(pointX, pointY);
+        ctx.moveTo(point.x, point.y);
       } else {
-        ctx.lineTo(pointX, pointY);
+        ctx.lineTo(point.x, point.y);
       }
-    }
+    });
     ctx.closePath();
     ctx.fillStyle = "hsl(var(--primary) / 0.2)";
     ctx.fill();
     ctx.strokeStyle = "hsl(var(--primary))";
-    ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Draw data points
-    for (let i = 0; i < numFactors; i++) {
-      const angle = (i / numFactors) * Math.PI * 2;
-      const value = factors[i].value;
-      const pointX = centerX + radius * value * Math.cos(angle);
-      const pointY = centerY + radius * value * Math.sin(angle);
-
+    // Draw factor points
+    factors.forEach((factor, i) => {
+      const angle = (i / factors.length) * Math.PI * 2 - Math.PI / 2;
       ctx.beginPath();
-      ctx.arc(pointX, pointY, 4, 0, Math.PI * 2);
-      ctx.fillStyle = factors[i].color;
+      ctx.arc(
+        centerX + Math.cos(angle) * radius * factor.value,
+        centerY + Math.sin(angle) * radius * factor.value,
+        4,
+        0,
+        Math.PI * 2
+      );
+      ctx.fillStyle = factor.color;
       ctx.fill();
-    }
+    });
   }, [factors]);
 
   return (
@@ -158,7 +171,7 @@ export function CreditRadar({ creditScore }: CreditRadarProps) {
                 r="44"
                 fill="none"
                 stroke="hsl(var(--muted))"
-                strokeWidth="4"
+                strokeWidth="8"
               />
               <circle
                 cx="48"
@@ -167,34 +180,33 @@ export function CreditRadar({ creditScore }: CreditRadarProps) {
                 fill="none"
                 stroke="hsl(var(--primary))"
                 strokeWidth="8"
-                strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 44}
-                strokeDashoffset={2 * Math.PI * 44 * (1 - score / 850)}
+                strokeDasharray={`${(score / 1000) * 276} 276`}
                 transform="rotate(-90 48 48)"
+                className="transition-all duration-1000 ease-out"
               />
             </svg>
           </div>
         </div>
 
-        <div className="flex justify-center">
+        <div className="relative aspect-square">
           <canvas
             ref={canvasRef}
-            width={200}
-            height={200}
-            className="max-w-full"
+            width={300}
+            height={300}
+            className="w-full h-full"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-4">
-          {factors.map((factor, index) => (
-            <div key={index} className="flex items-center gap-2">
+          {factors.map((factor) => (
+            <div key={factor.name} className="flex items-center gap-2">
               <div
                 className="w-3 h-3 rounded-full"
                 style={{ backgroundColor: factor.color }}
               />
-              <div className="text-xs">
-                <div>{factor.name}</div>
-                <div className="font-medium">
+              <div className="flex flex-col">
+                <div className="text-xs font-medium">{factor.name}</div>
+                <div className="text-xs text-muted-foreground">
                   {Math.round(factor.value * 100)}%
                 </div>
               </div>

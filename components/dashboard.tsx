@@ -2,41 +2,65 @@
 
 import { useState, useEffect } from "react";
 import { LoanDashboard } from "@/components/loan-dashboard";
-// import { CeloWallet } from "@/components/celo-wallet";
 import { useAuth } from "@/contexts/auth-context";
+import { useLending } from "@/contexts/LendingContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWeb3 } from "@/contexts/useWeb3";
+import { DEFAULT_CURRENCY } from "@/types/currencies";
 
-const DEMO_LOAN_ELIGIBILITY = {
-  limit: 1250,
-};
-
-const DEMO_ACTIVE_LOANS = [
-  {
-    id: "loan_123",
-    amountLocal: 500,
-    localCurrency: "KES",
-    termDays: 30,
-    status: "active",
-    repaymentSchedule: [
-      { status: "paid" },
-      { status: "paid" },
-      { status: "pending" },
-    ],
-  },
-];
+interface ActiveLoan {
+  id: string;
+  amountLocal: number;
+  localCurrency: string;
+  termDays: number;
+  status: string;
+  repaymentSchedule: { status: string }[];
+}
 
 export function Dashboard() {
   const { user } = useAuth();
-  const [loanEligibility, setLoanEligibility] = useState(DEMO_LOAN_ELIGIBILITY);
-  const [activeLoans, setActiveLoans] = useState(DEMO_ACTIVE_LOANS);
+  const { getWithdrawable, getUserLoan } = useLending();
+  const { getStableTokenBalance } = useWeb3();
+  const [loanLimit, setLoanLimit] = useState(0);
+  const [activeLoan, setActiveLoan] = useState<ActiveLoan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    const fetchData = async () => {
+      try {
+        const [balance, withdrawable, loanData] = await Promise.all([
+          getStableTokenBalance(DEFAULT_CURRENCY),
+          getWithdrawable(),
+          getUserLoan(),
+        ]);
+
+        // Set loan limit as 50% of withdrawable balance
+        setLoanLimit(Number(withdrawable.withdrawable) * 0.5);
+
+        // Format loan data if active
+        if (loanData && loanData.active) {
+          setActiveLoan({
+            id: "current",
+            amountLocal: Number(loanData.principal),
+            localCurrency: "KES",
+            termDays: 30,
+            status: "active",
+            repaymentSchedule: [
+              { status: Number(loanData.principal) === 0 ? "paid" : "pending" },
+            ],
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchData();
+    }
+  }, [user, getStableTokenBalance, getWithdrawable, getUserLoan]);
 
   return (
     <div className="container mx-auto space-y-4 px-2 py-4 md:px-4 md:py-6">
@@ -46,12 +70,7 @@ export function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Wallet component commented out to hide crypto jargon from users */}
-          {/* <CeloWallet /> */}
-          <LoanDashboard
-            availableCredit={loanEligibility?.limit || 0}
-            activeLoan={activeLoans[0] || null}
-          />
+          <LoanDashboard availableCredit={loanLimit} activeLoan={activeLoan} />
         </>
       )}
     </div>

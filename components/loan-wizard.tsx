@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -11,11 +11,20 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ArrowRight, Check, CircleDollarSign, Clock } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  CircleDollarSign,
+  Clock,
+  RefreshCw,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
+import { CreditRadar } from "@/components/credit-radar";
+import { useLending } from "@/contexts/LendingContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
-type Step = "amount" | "repayment" | "confirmation";
+type Step = "score" | "amount" | "repayment" | "confirmation";
 
 interface LoanWizardProps {
   availableCredit: number;
@@ -23,16 +32,42 @@ interface LoanWizardProps {
 }
 
 export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
-  const [step, setStep] = useState<Step>("amount");
+  const [step, setStep] = useState<Step>("score");
   const [amount, setAmount] = useState(1000);
   const [term] = useState(30);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [creditScore, setCreditScore] = useState<any>(null);
+  const [isLoadingScore, setIsLoadingScore] = useState(true);
+  const { getCreditScore } = useLending();
 
   // 5% interest rate
   const totalRepayment = amount * 1.05;
 
+  const fetchCreditScore = async () => {
+    setIsLoadingScore(true);
+    try {
+      const score = await getCreditScore();
+      setCreditScore(score);
+    } catch (error) {
+      console.error("Error loading credit score:", error);
+      toast({
+        title: "Error",
+        description: "Could not load credit score. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingScore(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCreditScore();
+  }, [getCreditScore]);
+
   const handleNext = () => {
-    if (step === "amount") {
+    if (step === "score") {
+      setStep("amount");
+    } else if (step === "amount") {
       setStep("repayment");
     } else if (step === "repayment") {
       setStep("confirmation");
@@ -40,7 +75,9 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
   };
 
   const handleBack = () => {
-    if (step === "repayment") {
+    if (step === "amount") {
+      setStep("score");
+    } else if (step === "repayment") {
       setStep("amount");
     } else if (step === "confirmation") {
       setStep("repayment");
@@ -52,10 +89,8 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
     try {
       const success = await onSubmit({
         amountLocal: amount,
-        localCurrency: "KES",
         termDays: term,
       });
-
       if (success) {
         toast({
           title: "Processing Your Loan",
@@ -74,6 +109,14 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
     }
   };
 
+  // Calculate max loan amount based on credit score and available credit
+  const maxLoanAmount = creditScore
+    ? Math.min(
+        availableCredit,
+        70000 * (creditScore.score / 1000) // Scale max amount by credit score
+      )
+    : availableCredit;
+
   return (
     <Card>
       <CardHeader>
@@ -82,6 +125,52 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
       </CardHeader>
 
       <CardContent className="space-y-6">
+        {step === "score" && (
+          <>
+            {isLoadingScore ? (
+              <div className="space-y-4">
+                <Skeleton className="h-[300px] w-full rounded-lg" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : creditScore ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <CreditRadar creditScore={creditScore} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={fetchCreditScore}
+                    className="absolute top-4 right-4"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="sr-only">Refresh credit score</span>
+                  </Button>
+                </div>
+                <div className="text-sm text-muted-foreground mt-4">
+                  Based on your credit score of {creditScore.score}, you can
+                  borrow up to{" "}
+                  <span className="font-medium">
+                    KES {Math.round(maxLoanAmount).toLocaleString()}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Could not load credit score.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchCreditScore}
+                  className="mt-2"
+                >
+                  Try Again
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+
         {step === "amount" && (
           <>
             <div>
@@ -95,16 +184,14 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
               <Slider
                 value={[amount]}
                 min={1000}
-                max={Math.min(availableCredit, 70000)}
+                max={maxLoanAmount}
                 step={1000}
                 onValueChange={(values) => setAmount(values[0])}
                 className="py-4"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>KES 1,000</span>
-                <span>
-                  KES {Math.min(availableCredit, 70000).toLocaleString()}
-                </span>
+                <span>KES {Math.round(maxLoanAmount).toLocaleString()}</span>
               </div>
             </div>
 
@@ -201,13 +288,16 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
       </CardContent>
 
       <CardFooter className="flex justify-between">
-        {step !== "amount" && (
+        {step !== "score" && (
           <Button variant="outline" onClick={handleBack}>
             Back
           </Button>
         )}
         {step !== "confirmation" ? (
-          <Button className="ml-auto" onClick={handleNext}>
+          <Button
+            className={step === "score" ? "w-full" : "ml-auto"}
+            onClick={handleNext}
+          >
             Continue
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

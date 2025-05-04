@@ -6,6 +6,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/auth-context";
 import { Toaster } from "@/components/ui/toaster";
 import { Web3Provider } from "@/contexts/Web3Provider";
+import { LendingProvider } from "@/contexts/LendingContext";
+import { LiquidityProvider } from "@/contexts/LiquidityContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,8 +34,12 @@ export default function RootLayout({
         >
           <AuthProvider>
             <Web3Provider>
-              {children}
-              <Toaster />
+              <LendingProvider>
+                <LiquidityProvider>
+                  {children}
+                  <Toaster />
+                </LiquidityProvider>
+              </LendingProvider>
             </Web3Provider>
           </AuthProvider>
         </ThemeProvider>

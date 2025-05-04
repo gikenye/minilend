@@ -13,56 +13,69 @@ import { Progress } from "@/components/ui/progress";
 import { MiniPayHeader } from "@/components/mini-pay-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, Home, TrendingUp, CircleDollarSign } from "lucide-react";
+import { useLending } from "@/contexts/LendingContext";
+import { useWeb3 } from "@/contexts/useWeb3";
+import { KES_EXCHANGE_RATE } from "@/types/currencies";
 
-// Sample earnings data for demonstration
-const DEMO_EARNINGS_DATA = {
-  totalEarned: 450,
-  activeLoans: 3,
-  totalLent: 2000,
-  currency: "KES",
-  recentTransactions: [
-    {
-      id: 1,
-      amount: 150,
-      type: "interest",
-      date: "2025-05-01",
-      status: "completed",
-    },
-    {
-      id: 2,
-      amount: 200,
-      type: "interest",
-      date: "2025-04-28",
-      status: "completed",
-    },
-    {
-      id: 3,
-      amount: 100,
-      type: "interest",
-      date: "2025-04-25",
-      status: "completed",
-    },
-  ],
-};
+interface RecentTransaction {
+  id: number;
+  amount: number;
+  type: string;
+  date: string;
+  status: string;
+}
 
 export default function EarningsPage() {
+  const { getYields } = useLending();
   const [isLoading, setIsLoading] = useState(true);
-  const [earnings, setEarnings] = useState(DEMO_EARNINGS_DATA);
-  const [moneyInUse, setMoneyInUse] = useState(75); // Percentage of money being used for loans
+  const [earnings, setEarnings] = useState({
+    totalEarned: 0,
+    activeLoans: 0,
+    totalLent: 0,
+    currency: "KES",
+    recentTransactions: [] as RecentTransaction[],
+  });
 
   useEffect(() => {
-    // Simulate loading for demo
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
+    const fetchEarnings = async () => {
+      try {
+        const yields = await getYields();
 
-    return () => clearTimeout(timer);
-  }, []);
+        // Convert yields to local currency
+        const grossYield = Number(yields.grossYield) * KES_EXCHANGE_RATE;
+        const netYield = Number(yields.netYield) * KES_EXCHANGE_RATE;
+        const usedForLoanRepayment =
+          Number(yields.usedForLoanRepayment) * KES_EXCHANGE_RATE;
+
+        setEarnings({
+          totalEarned: netYield,
+          activeLoans: 1, // Could be calculated from active loans in future
+          totalLent: grossYield,
+          currency: "KES",
+          recentTransactions: [
+            {
+              id: 1,
+              amount: usedForLoanRepayment,
+              type: "interest",
+              date: new Date().toISOString(),
+              status: "completed",
+            },
+          ],
+        });
+      } catch (error) {
+        console.error("Error fetching earnings:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEarnings();
+  }, [getYields]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
-      month: "short",
+      month: "long",
       day: "numeric",
     });
   };
@@ -71,109 +84,82 @@ export default function EarningsPage() {
     <main className="flex min-h-screen flex-col bg-background">
       <MiniPayHeader />
       <div className="container px-4 py-6 mx-auto space-y-6 max-w-md">
-        <h1 className="text-2xl font-bold text-foreground">Your Earnings</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-foreground">Your Earnings</h1>
+        </div>
 
         {isLoading ? (
           <div className="space-y-4">
-            <Skeleton className="h-[200px] w-full rounded-lg" />
-            <Skeleton className="h-[150px] w-full rounded-lg" />
-            <Skeleton className="h-[300px] w-full rounded-lg" />
+            <Skeleton className="h-[100px] w-full rounded-lg" />
+            <Skeleton className="h-[100px] w-full rounded-lg" />
+            <Skeleton className="h-[250px] w-full rounded-lg" />
           </div>
         ) : (
           <>
-            {/* Total Earnings Card */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-500" />
-                  Total Money Earned
-                </CardTitle>
-                <CardDescription>
-                  Money you've earned by helping others
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-green-600">
-                  {earnings.totalEarned} {earnings.currency}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  From helping {earnings.activeLoans} people with loans
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Total Earned</CardTitle>
+                  <CardDescription className="text-xs">
+                    All time
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {earnings.currency} {earnings.totalEarned.toLocaleString()}
+                  </div>
+                </CardContent>
+              </Card>
 
-            {/* Activity Stats */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Total Lent</CardTitle>
+                  <CardDescription className="text-xs">
+                    Money in circulation
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {earnings.currency} {earnings.totalLent.toLocaleString()}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Activity Summary</CardTitle>
-                <CardDescription>
-                  How your money is helping others
-                </CardDescription>
+              <CardHeader>
+                <CardTitle>Recent Transactions</CardTitle>
+                <CardDescription>Your earnings history</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Money Currently In Use</span>
-                    <span>{moneyInUse}%</span>
-                  </div>
-                  <Progress value={moneyInUse} className="h-2" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Total Money Lent
-                    </div>
-                    <div className="text-lg font-bold">
-                      {earnings.totalLent} {earnings.currency}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Yearly Returns
-                    </div>
-                    <div className="text-lg font-bold text-green-600">15%</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recent Earnings */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Recent Earnings</CardTitle>
-                <CardDescription>Money you've earned recently</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {earnings.recentTransactions.map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                    >
-                      <div className="flex items-start gap-3">
-                        <CircleDollarSign className="h-5 w-5 text-green-500 mt-0.5" />
-                        <div>
-                          <div className="font-medium">
-                            Earned {transaction.amount} {earnings.currency}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {formatDate(transaction.date)}
-                          </div>
-                        </div>
+                {earnings.recentTransactions.map((transaction) => (
+                  <div
+                    key={transaction.id}
+                    className="flex items-center justify-between py-2"
+                  >
+                    <div>
+                      <div className="font-medium">Interest Earned</div>
+                      <div className="text-sm text-muted-foreground">
+                        {formatDate(transaction.date)}
                       </div>
-                      <Button variant="ghost" size="icon">
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
                     </div>
-                  ))}
-                </div>
+                    <div className="font-bold text-green-600">
+                      +{earnings.currency} {transaction.amount.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+
+                {earnings.recentTransactions.length === 0 && (
+                  <div className="text-center text-muted-foreground py-8">
+                    No earnings yet. Start lending to earn interest!
+                  </div>
+                )}
               </CardContent>
             </Card>
           </>
         )}
       </div>
 
-      {/* Fixed Home Button */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
         <Button
           variant="default"

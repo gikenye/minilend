@@ -117,11 +117,11 @@ export default function DepositPage() {
           <CardContent className="space-y-3">
             <div>
               <div className="text-2xl font-bold">
-                KES {(Number(balance) * KES_EXCHANGE_RATE).toFixed(2)}
+                cKES {(Number(balance) * KES_EXCHANGE_RATE).toFixed(2)}
               </div>
               {Number(estimatedFees) > 0 && (
                 <div className="text-xs text-muted-foreground mt-1">
-                  Estimated fee: KES{" "}
+                  Estimated fee: cKES{" "}
                   {(Number(estimatedFees) * KES_EXCHANGE_RATE).toFixed(2)}
                 </div>
               )}

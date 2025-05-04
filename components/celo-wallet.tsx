@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { type PublicClient } from "viem";
 import {
   Card,
   CardContent,
@@ -12,19 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw } from "lucide-react";
-import { useWeb3 } from "@/contexts/useWeb3";
+import { useWeb3, type Web3ContextType } from "@/contexts/useWeb3";
 import { toast } from "@/components/ui/use-toast";
-
-export interface Web3ContextType {
-  address: string | null;
-  networkType: "mainnet" | "testnet";
-  switchNetwork: (network: "mainnet" | "testnet") => Promise<boolean>;
-  isMiniPay: boolean;
-  getStableTokenBalance: (
-    currency: string,
-    addressToCheck?: string
-  ) => Promise<string>;
-}
 
 export function CeloWallet() {
   const {
