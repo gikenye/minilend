@@ -39,14 +39,14 @@ export const STABLECOIN_ADDRESSES: Record<string, `0x${string}`> = {
 };
 
 // Initialize public clients for both networks
-const mainnetClient = createPublicClient({
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-}) as unknown as PublicClient;
-
 const testnetClient = createPublicClient({
   chain: celoAlfajores,
   transport: http("https://alfajores-forno.celo-testnet.org"),
+}) as unknown as PublicClient;
+
+const mainnetClient = createPublicClient({
+  chain: celo,
+  transport: http("https://forno.celo.org"),
 }) as unknown as PublicClient;
 
 // Token addresses for both networks
@@ -63,7 +63,7 @@ const NETWORK_CONFIG = {
   },
   testnet: {
     stableTokenAddresses: {
-      cUSD: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
+      cUSD: "0x765DE816845861e75A25fCA122bb6898B8B1282a", // Updated to MiniPay test environment address
       USDC: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
       USDT: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
     },
@@ -124,11 +124,11 @@ export const useWeb3Provider = () => {
     "testnet"
   );
   const [publicClient, setPublicClient] = useState<PublicClient>(() => {
-    // Start with testnet by default
-    return createPublicClient({
+    const client = createPublicClient({
       chain: celoAlfajores,
-      transport: http("https://alfajores-forno.celo-testnet.org"),
-    }) as unknown as PublicClient;
+      transport: http(),
+    });
+    return client as unknown as PublicClient;
   });
   const [availableCurrencies, setAvailableCurrencies] = useState<Currency[]>(
     getAvailableCurrencies("testnet")
@@ -163,6 +163,14 @@ export const useWeb3Provider = () => {
   };
 
   const handleNetworkChange = async (chainId: string) => {
+    // In MiniPay test environment, always treat as testnet
+    if (window?.ethereum?.isMiniPay) {
+      setNetworkType("testnet");
+      setPublicClient(testnetClient);
+      setAvailableCurrencies(getAvailableCurrencies("testnet"));
+      return;
+    }
+
     const network =
       chainId === NETWORK_CONFIG.mainnet.chainId ? "mainnet" : "testnet";
     setNetworkType(network);
@@ -179,23 +187,25 @@ export const useWeb3Provider = () => {
     setIsMiniPay(!!window.ethereum.isMiniPay);
 
     if (window.ethereum.isMiniPay) {
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-        params: [],
-      });
-      if (accounts && accounts[0]) {
-        console.log("Connected to MiniPay wallet:", accounts[0]);
-        setAddress(accounts[0]);
-        // Detect initial network for MiniPay
-        const network = await getCurrentNetwork();
-        if (network) {
-          setNetworkType(network);
-          setPublicClient(
-            network === "mainnet" ? mainnetClient : testnetClient
-          );
-          setAvailableCurrencies(getAvailableCurrencies(network));
+      try {
+        const accounts = await window.ethereum.request({
+          method: "eth_requestAccounts",
+          params: [],
+        });
+
+        // Force testnet for MiniPay test environment
+        setNetworkType("testnet");
+        setPublicClient(testnetClient);
+        setAvailableCurrencies(getAvailableCurrencies("testnet"));
+
+        if (accounts && accounts[0]) {
+          console.log("Connected to MiniPay wallet:", accounts[0]);
+          setAddress(accounts[0]);
+          return true;
         }
-        return true;
+      } catch (error) {
+        console.error("Error connecting to MiniPay:", error);
+        throw new Error("Failed to connect to MiniPay wallet");
       }
     }
     return false;
@@ -400,37 +410,19 @@ export const useWeb3Provider = () => {
   ) => {
     try {
       const userAddress = addressToCheck || address;
-      if (!userAddress) {
-        throw new Error("No address provided");
-      }
-      // Defensive: ensure currency is supported on current network
-      if (!availableCurrencies.includes(currency as Currency)) {
-        throw new Error(
-          `Currency ${currency} is not supported on ${networkType}`
-        );
+      if (!userAddress || !publicClient) {
+        throw new Error("No address or client available");
       }
 
-      const StableTokenContract = getContract({
-        abi: [
-          {
-            constant: true,
-            inputs: [{ name: "account", type: "address" }],
-            name: "balanceOf",
-            outputs: [{ name: "", type: "uint256" }],
-            payable: false,
-            stateMutability: "view",
-            type: "function",
-          },
-        ],
+      // Match exact MiniPay implementation
+      const result = await publicClient.readContract({
+        abi: stableTokenABI,
         address: getStableTokenAddress(currency),
-        publicClient,
+        functionName: "balanceOf",
+        args: [userAddress as `0x${string}`],
       });
 
-      const balanceInBigNumber = await StableTokenContract.read.balanceOf([
-        userAddress as `0x${string}`,
-      ]);
-
-      return formatEther(balanceInBigNumber);
+      return formatEther(result);
     } catch (error) {
       console.error(`Error getting ${currency} balance:`, error);
       throw error;
