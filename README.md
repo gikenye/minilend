@@ -55,32 +55,42 @@ This dApp is fully compatible with MiniPay, featuring:
 ## ⚡ Getting Started
 
 1. Clone the repository:
+---
 ```bash
-git clone https://github.com/gikenye/robinhood.git
-cd robinhood
+git clone https://github.com/gikenye/minilend.git
+cd minilend
 ```
+---
 
 2. Install dependencies:
+---
 ```bash
 npm install
 ```
+---
 
 3. Run development server:
+---
 ```bash
 npm run dev
 ```
+---
 
 ## 🧪 Testing with MiniPay
 
 1. Start your local server:
+---
 ```bash
 npm run dev
 ```
+---
 
 2. Expose with ngrok:
+---
 ```bash
 ngrok http 3000
 ```
+---
 
 3. In MiniPay:
    - Enable Developer Mode
@@ -90,10 +100,12 @@ ngrok http 3000
 ## 🔧 Environment Setup
 
 1. Set up environment variables:
+---
 ```env
 NEXT_PUBLIC_WC_PROJECT_ID=your_wallet_connect_project_id
 NEXT_PUBLIC_API_URL=http://localhost:5001
 ```
+---
 
 2. Smart Contract Configuration:
 - Contract Interface: `@celo/abis` v1+ required
@@ -111,9 +123,11 @@ NEXT_PUBLIC_API_URL=http://localhost:5001
 
 ### Frontend Deployment
 1. Build the project:
+---
 ```bash
 yarn build
 ```
+---
 
 2. Deploy to your preferred hosting platform:
 - Vercel (recommended)
@@ -122,15 +136,19 @@ yarn build
 
 ### Smart Contract Deployment
 1. Configure Hardhat network:
+---
 ```bash
 npx hardhat compile
 npx hardhat deploy --network alfajores
 ```
+---
 
 2. Verify contract:
+---
 ```bash
 npx hardhat verify --network alfajores [CONTRACT_ADDRESS]
 ```
+---
 
 ## 🔒 Security Features
 

@@ -1,0 +1,320 @@
+{
+  "info": {
+    "name": "MiniLend API Collection",
+    "description": "API collection for MiniLend DeFi Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Loans",
+      "item": [
+        {
+          "name": "Get Loan Limit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/loans/limit",
+              "path": ["api", "loans", "limit"]
+            }
+          }
+        },
+        {
+          "name": "Apply for Loan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": {
+                "amountCUSD": 1000,
+                "amountLocal": 1200,
+                "localCurrency": "USD",
+                "termDays": 30
+              },
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/loans/apply",
+              "path": ["api", "loans", "apply"]
+            }
+          }
+        },
+        {
+          "name": "Get Active Loans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/loans/active",
+              "path": ["api", "loans", "active"]
+            }
+          }
+        },
+        {
+          "name": "Get Loan Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/loans/:loanId",
+              "path": ["api", "loans", ":loanId"],
+              "variable": [
+                {
+                  "key": "loanId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Repayments",
+      "item": [
+        {
+          "name": "Get Repayment Schedule",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/repayment/schedule/:loanId",
+              "path": ["api", "repayment", "schedule", ":loanId"],
+              "variable": [
+                {
+                  "key": "loanId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Process Repayment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": {
+                "loanId": "",
+                "amount": 0,
+                "paymentIndex": 0
+              },
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/repayment/process",
+              "path": ["api", "repayment", "process"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Lending Pools",
+      "item": [
+        {
+          "name": "Get All Lending Pools",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/lending-pools",
+              "path": ["api", "lending-pools"],
+              "query": [
+                {
+                  "key": "currency",
+                  "value": "cUSD",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "region",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "riskLevel",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Lending Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": {
+                "name": "Test Pool",
+                "totalFunds": 10000,
+                "currency": "cUSD",
+                "interestRate": 500,
+                "minLoanAmount": 100,
+                "maxLoanAmount": 1000,
+                "minTermDays": 30,
+                "maxTermDays": 180,
+                "riskLevel": "medium",
+                "region": "Global",
+                "description": "Test lending pool",
+                "miniPayAddress": "{{wallet_address}}"
+              },
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/lending-pools",
+              "path": ["api", "lending-pools"]
+            }
+          }
+        },
+        {
+          "name": "Get Pool Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/lending-pools/status",
+              "path": ["api", "lending-pools", "status"]
+            }
+          }
+        },
+        {
+          "name": "Contribute to Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": {
+                "poolId": "",
+                "amount": 1000
+              },
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/lending-pools/contribute",
+              "path": ["api", "lending-pools", "contribute"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Loan History",
+      "item": [
+        {
+          "name": "Get User Loan History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-minipay-address",
+                "value": "{{wallet_address}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/loan-history/:userId",
+              "path": ["api", "loan-history", ":userId"],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "wallet_address",
+      "value": "your_wallet_address_here"
+    }
+  ]
+}
