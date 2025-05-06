@@ -29,7 +29,7 @@ export class BlockchainService {
       }
       await this.kit.connection.addAccount(privateKey);
       const account = this.web3.eth.accounts.privateKeyToAccount(privateKey);
-      this.kit.defaultAccount = account.address;
+      this.kit.defaultAccount = account.address as `0x${string}`;
 
       const contractAddress = process.env.CONTRACT_ADDRESS;
       if (!contractAddress) {

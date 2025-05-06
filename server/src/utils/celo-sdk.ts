@@ -17,7 +17,7 @@ export class CeloSDK {
   async setAccount(privateKey: string): Promise<string> {
     this.kit.connection.addAccount(privateKey);
     const account = this.kit.web3.eth.accounts.privateKeyToAccount(privateKey);
-    this.kit.defaultAccount = account.address;
+    this.kit.defaultAccount = account.address as `0x${string}`;
     return account.address;
   }
 
