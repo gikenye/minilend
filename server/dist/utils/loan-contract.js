@@ -5,23 +5,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LoanContract = void 0;
 const minilend_abi_json_1 = __importDefault(require("../../minilend-abi.json"));
+const env_1 = require("../config/env");
 class LoanContract {
     constructor(kit) {
         this.kit = kit;
-        const contractAddress = process.env.CONTRACT_ADDRESS;
-        if (!contractAddress) {
-            throw new Error("CONTRACT_ADDRESS not set in environment variables");
-        }
-        this.contract = new this.kit.web3.eth.Contract(minilend_abi_json_1.default, contractAddress);
+        this.contract = new this.kit.web3.eth.Contract(minilend_abi_json_1.default, env_1.env.CONTRACT_ADDRESS);
     }
     async createLoan(borrower, collateralAmount, loanAmount, termDays) {
         return this.contract.methods
-            .borrow(process.env.CUSD_ADDRESS, loanAmount)
+            .borrow(env_1.env.CUSD_ADDRESS, loanAmount)
             .send({ from: borrower });
     }
     async repayLoan(loanId, amount) {
         return this.contract.methods
-            .repay(process.env.CUSD_ADDRESS, amount)
+            .repay(env_1.env.CUSD_ADDRESS, amount)
             .send({ from: this.kit.defaultAccount });
     }
     async liquidateCollateral(loanId) {
@@ -46,7 +43,7 @@ class LoanContract {
     }
     async getLoanDetails(user) {
         const loan = await this.contract.methods
-            .userLoans(user, process.env.CUSD_ADDRESS)
+            .userLoans(user, env_1.env.CUSD_ADDRESS)
             .call();
         return {
             borrowerAddress: user,

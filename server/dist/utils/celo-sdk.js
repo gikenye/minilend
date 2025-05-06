@@ -5,10 +5,10 @@ const contractkit_1 = require("@celo/contractkit");
 const celo_tokens_1 = require("@celo/contractkit/lib/celo-tokens");
 const connect_1 = require("@celo/connect");
 const loan_contract_1 = require("./loan-contract");
+const env_1 = require("../config/env");
 class CeloSDK {
     constructor() {
-        const provider = process.env.CELO_PROVIDER || "https://alfajores-forno.celo-testnet.org";
-        this.kit = (0, contractkit_1.newKit)(provider);
+        this.kit = (0, contractkit_1.newKit)(env_1.env.CELO_PROVIDER);
         this.loanContract = new loan_contract_1.LoanContract(this.kit);
     }
     async setAccount(privateKey) {

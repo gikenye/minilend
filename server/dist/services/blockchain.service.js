@@ -106,29 +106,21 @@ class BlockchainService {
             .send({ from: this.kit.defaultAccount });
         return tx.transactionHash;
     }
-    async getLoanEvents(miniPayAddress, fromBlock = 0) {
-        await this.initialize();
-        try {
-            const filter = miniPayAddress ? { user: miniPayAddress } : {};
-            return await this.contract.getPastEvents("allEvents", {
-                filter,
-                fromBlock,
-                toBlock: "latest"
-            });
-        }
-        catch (error) {
-            console.error("Error getting loan events:", error);
-            return [];
-        }
-    }
-    // Method kept for backward compatibility but will be removed in future
     async subscribeToEvents(callback) {
-        console.warn("subscribeToEvents is deprecated, use getLoanEvents instead");
         await this.initialize();
-        const events = await this.getLoanEvents("");
-        for (const event of events) {
-            callback(event);
-        }
+        this.contract.events
+            .allEvents()
+            .on("data", callback)
+            .on("error", console.error);
+    }
+    async getLoanEvents(miniPayAddress) {
+        await this.initialize();
+        const events = await this.contract.getPastEvents("allEvents", {
+            filter: { user: miniPayAddress },
+            fromBlock: 0,
+            toBlock: "latest",
+        });
+        return events;
     }
     async fromWei(amount) {
         await this.initialize();

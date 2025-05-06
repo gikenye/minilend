@@ -10,8 +10,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@celo/connect": "^4.1.0",
-    "@celo/contractkit": "^4.1.0",
+    "@celo/connect": "^6.1.2",
+    "@celo/contractkit": "^9.2.1",
     "@types/axios": "^0.14.4",
     "axios": "^1.9.0",
     "cors": "^2.8.5",

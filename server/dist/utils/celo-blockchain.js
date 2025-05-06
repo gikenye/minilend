@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CeloBlockchain = void 0;
 const celo_sdk_1 = require("./celo-sdk");
+const env_1 = require("../config/env");
 class CeloBlockchain {
     constructor() {
         this.initialized = false;
@@ -9,11 +10,7 @@ class CeloBlockchain {
     }
     async initialize() {
         if (!this.initialized) {
-            const privateKey = process.env.CELO_PRIVATE_KEY;
-            if (!privateKey) {
-                throw new Error("CELO_PRIVATE_KEY not set in environment variables");
-            }
-            await this.celoSDK.setAccount(privateKey);
+            await this.celoSDK.setAccount(env_1.env.CELO_PRIVATE_KEY);
             this.initialized = true;
         }
     }

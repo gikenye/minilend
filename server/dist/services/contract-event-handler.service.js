@@ -7,38 +7,14 @@ const lending_pool_service_1 = require("./lending-pool.service");
 const loan_service_1 = require("./loan.service");
 class ContractEventHandler {
     constructor() {
-        this.lastProcessedBlock = 0;
-        this.pollingInterval = null;
         this.blockchainService = new blockchain_service_1.BlockchainService();
         this.transactionService = new transaction_service_1.TransactionService();
         this.lendingPoolService = new lending_pool_service_1.LendingPoolService();
         this.loanService = new loan_service_1.LoanService();
-        this.initializeEventPolling();
+        this.initializeEventListeners();
     }
-    async initializeEventPolling() {
-        try {
-            // Start polling every 15 seconds
-            this.pollingInterval = setInterval(async () => {
-                await this.pollEvents();
-            }, 15000);
-        }
-        catch (error) {
-            console.error("Error initializing event polling:", error);
-        }
-    }
-    async pollEvents() {
-        try {
-            const events = await this.blockchainService.getLoanEvents("");
-            for (const event of events) {
-                if (event.blockNumber > this.lastProcessedBlock) {
-                    await this.handleContractEvent(event);
-                    this.lastProcessedBlock = event.blockNumber;
-                }
-            }
-        }
-        catch (error) {
-            console.error("Error polling events:", error);
-        }
+    async initializeEventListeners() {
+        await this.blockchainService.subscribeToEvents(this.handleContractEvent.bind(this));
     }
     async handleContractEvent(event) {
         try {
