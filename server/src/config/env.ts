@@ -2,23 +2,18 @@ import dotenv from "dotenv";
 import path from "path";
 
 function validateEnv() {
-  // Load environment variables immediately
+  // Load environment variables from .env file if it exists
   const envPath = path.resolve(
     process.cwd(),
     process.env.NODE_ENV === "test" ? ".env.test" : ".env"
   );
   console.log("Loading environment from:", envPath);
 
-  const result = dotenv.config({
+  // Try to load .env file but don't throw if it doesn't exist
+  dotenv.config({
     path: envPath,
     debug: true,
   });
-
-  if (result.error) {
-    throw new Error(
-      `Failed to load environment variables: ${result.error.message}`
-    );
-  }
 
   // Verify required environment variables
   const requiredVars = {
