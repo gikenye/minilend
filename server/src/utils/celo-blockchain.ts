@@ -1,4 +1,5 @@
 import { CeloSDK } from "./celo-sdk";
+import { env } from "../config/env";
 
 export class CeloBlockchain {
   private initialized = false;
@@ -6,11 +7,7 @@ export class CeloBlockchain {
 
   private async initialize(): Promise<void> {
     if (!this.initialized) {
-      const privateKey = process.env.CELO_PRIVATE_KEY;
-      if (!privateKey) {
-        throw new Error("CELO_PRIVATE_KEY not set in environment variables");
-      }
-      await this.celoSDK.setAccount(privateKey);
+      await this.celoSDK.setAccount(env.CELO_PRIVATE_KEY);
       this.initialized = true;
     }
   }

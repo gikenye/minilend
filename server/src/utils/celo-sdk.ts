@@ -3,15 +3,14 @@ import { StableToken } from "@celo/contractkit/lib/celo-tokens";
 import { toTxResult } from "@celo/connect";
 import { LoanContract } from "./loan-contract";
 import { LoanDetails } from "../types/loan";
+import { env } from "../config/env";
 
 export class CeloSDK {
   private kit: ContractKit;
   private loanContract: LoanContract;
 
   constructor() {
-    const provider =
-      process.env.CELO_PROVIDER || "https://alfajores-forno.celo-testnet.org";
-    this.kit = newKit(provider);
+    this.kit = newKit(env.CELO_PROVIDER);
     this.loanContract = new LoanContract(this.kit);
   }
 

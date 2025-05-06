@@ -2,6 +2,7 @@
 import { ContractKit } from "@celo/contractkit";
 import { LoanDetails } from "../types/loan";
 import MiniLendABI from "../../minilend-abi.json";
+import { env } from "../config/env";
 
 export class LoanContract {
   private kit: ContractKit;
@@ -9,13 +10,9 @@ export class LoanContract {
 
   constructor(kit: ContractKit) {
     this.kit = kit;
-    const contractAddress = process.env.CONTRACT_ADDRESS;
-    if (!contractAddress) {
-      throw new Error("CONTRACT_ADDRESS not set in environment variables");
-    }
     this.contract = new this.kit.web3.eth.Contract(
       MiniLendABI as any,
-      contractAddress
+      env.CONTRACT_ADDRESS
     );
   }
 
@@ -26,13 +23,13 @@ export class LoanContract {
     termDays: number
   ): Promise<any> {
     return this.contract.methods
-      .borrow(process.env.CUSD_ADDRESS, loanAmount)
+      .borrow(env.CUSD_ADDRESS, loanAmount)
       .send({ from: borrower });
   }
 
   async repayLoan(loanId: string, amount: string): Promise<any> {
     return this.contract.methods
-      .repay(process.env.CUSD_ADDRESS, amount)
+      .repay(env.CUSD_ADDRESS, amount)
       .send({ from: this.kit.defaultAccount });
   }
 
@@ -65,7 +62,7 @@ export class LoanContract {
 
   async getLoanDetails(user: string): Promise<LoanDetails> {
     const loan = await this.contract.methods
-      .userLoans(user, process.env.CUSD_ADDRESS)
+      .userLoans(user, env.CUSD_ADDRESS)
       .call();
     return {
       borrowerAddress: user,

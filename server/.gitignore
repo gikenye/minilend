@@ -6,7 +6,10 @@
 # next.js
 /.next/
 /out/
-
+/dist/
+dist
+./dist
+dist/next
 # production
 /build
 
