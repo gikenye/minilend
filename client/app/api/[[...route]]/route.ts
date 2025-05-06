@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5001";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://k1-0sxo.onrender.com";
 
 // Helper to forward all relevant headers
 function getForwardedHeaders(request: NextRequest) {
@@ -8,19 +8,18 @@ function getForwardedHeaders(request: NextRequest) {
     "Content-Type": "application/json",
   };
 
-  // Forward Authorization header if present
+  // Forward authorization header if present
   const authHeader = request.headers.get("Authorization");
   if (authHeader) {
     headers["Authorization"] = authHeader;
   }
 
-  // Forward MiniPay specific headers if present
+  // Forward MiniPay specific headers
   const miniPayHeaders = [
     "x-minipay-wallet",
     "x-minipay-version",
     "x-minipay-signature",
   ];
-
   miniPayHeaders.forEach((header) => {
     const value = request.headers.get(header);
     if (value) {
@@ -31,9 +30,27 @@ function getForwardedHeaders(request: NextRequest) {
   return headers;
 }
 
+// Handle CORS preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Authorization, x-minipay-wallet, x-minipay-version, x-minipay-signature",
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { pathname, searchParams } = new URL(request.url);
-  const apiPath = pathname.replace("/api", "");
+
+  // Handle auth endpoints differently - they don't have /api prefix
+  const isAuthEndpoint = pathname.startsWith("/api/auth/");
+  const apiPath = isAuthEndpoint
+    ? pathname.replace("/api/auth/", "/auth/")
+    : pathname.replace("/api", "");
 
   try {
     // Construct full URL with query parameters
@@ -42,53 +59,78 @@ export async function GET(request: NextRequest) {
       url.searchParams.append(key, value);
     });
 
+    console.log("Forwarding GET request to:", url.toString());
     const response = await fetch(url, {
       method: "GET",
       headers: getForwardedHeaders(request),
     });
 
     const data = await response.json();
+    console.log("Received response:", data);
 
-    return NextResponse.json(data, {
+    return new NextResponse(JSON.stringify(data), {
       status: response.status,
       headers: {
-        "Cache-Control": response.headers.get("Cache-Control") || "no-cache",
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
       },
     });
   } catch (error) {
     console.error("API route error:", error);
-    return NextResponse.json(
-      { error: "Failed to connect to backend service" },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: "Failed to connect to backend service" }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
     );
   }
 }
 
 export async function POST(request: NextRequest) {
   const { pathname } = new URL(request.url);
-  const apiPath = pathname.replace("/api", "");
+
+  // Handle auth endpoints differently - they don't have /api prefix
+  const isAuthEndpoint = pathname.startsWith("/api/auth/");
+  const apiPath = isAuthEndpoint
+    ? pathname.replace("/api/auth/", "/auth/")
+    : pathname.replace("/api", "");
 
   try {
     const body = await request.json();
-    const response = await fetch(`${BACKEND_URL}${apiPath}`, {
+    const url = `${BACKEND_URL}${apiPath}`;
+    console.log("Forwarding POST request to:", url);
+
+    const response = await fetch(url, {
       method: "POST",
       headers: getForwardedHeaders(request),
       body: JSON.stringify(body),
     });
 
     const data = await response.json();
+    console.log("Received response:", data);
 
-    return NextResponse.json(data, {
+    return new NextResponse(JSON.stringify(data), {
       status: response.status,
       headers: {
-        "Cache-Control": "no-store",
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
       },
     });
   } catch (error) {
     console.error("API route error:", error);
-    return NextResponse.json(
-      { error: "Failed to connect to backend service" },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: "Failed to connect to backend service" }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
     );
   }
 }

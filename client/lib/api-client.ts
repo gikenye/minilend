@@ -1,7 +1,65 @@
 import axios from "axios";
 import { DEFAULT_CURRENCY } from "@/types/currencies";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+// MiniPay detection (per docs)
+export const isMiniPay =
+  typeof window !== "undefined" &&
+  !!window.ethereum &&
+  window.ethereum.isMiniPay;
+
+// Utility: Get MiniPay address (per docs)
+// https://docs.celo.org/build/build-on-minipay/code-library#get-the-connected-users-address-without-any-library
+export async function getMiniPayAddress(): Promise<string | null> {
+  if (
+    typeof window !== "undefined" &&
+    window.ethereum &&
+    window.ethereum.isMiniPay
+  ) {
+    try {
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+        params: [],
+      });
+      return accounts[0] || null;
+    } catch (e) {
+      console.error("Failed to get MiniPay address:", e);
+      return null;
+    }
+  }
+  return null;
+}
+
+// Utility: Connect external wallet (MetaMask, etc.)
+// Only runs if NOT in MiniPay
+// https://docs.celo.org/build/build-on-minipay/quickstart
+export async function connectWallet(): Promise<string | null> {
+  if (
+    typeof window !== "undefined" &&
+    window.ethereum &&
+    !window.ethereum.isMiniPay
+  ) {
+    try {
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+        params: [],
+      });
+      return accounts[0] || null;
+    } catch (e) {
+      console.error("Failed to connect external wallet:", e);
+      return null;
+    }
+  }
+  return null;
+}
+
+// Optionally, show a warning if not in MiniPay (UI implementation recommended)
+if (typeof window !== "undefined" && !isMiniPay) {
+  console.warn(
+    "Please open this app in MiniPay or connect an external wallet."
+  );
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -10,7 +68,7 @@ export const api = axios.create({
   },
 });
 
-// Add request interceptor to include auth token in headers
+// Add request interceptor to include auth token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("auth_token");
   if (token) {
@@ -19,6 +77,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+interface VerifyAuthParams {
+  miniPayAddress: string;
+  signature: string;
+  message: string;
+  walletType: "minipay" | "external";
+}
+
 class ApiClient {
   private async withErrorHandler<T>(
     endpoint: string,
@@ -26,13 +91,18 @@ class ApiClient {
   ): Promise<T> {
     try {
       return await apiCall();
-    } catch (error) {
-      console.error(`API Error (${endpoint}):`, error);
-      // Attempt to get mock data as fallback
-      const mockData = this.getFallbackData(endpoint);
-      if (mockData) {
-        console.warn(`Using mock data for ${endpoint}`);
-        return mockData as T;
+    } catch (error: any) {
+      if (error.response) {
+        console.error(`API Error (${endpoint}):`, {
+          status: error.response.status,
+          data: error.response.data,
+        });
+      } else if (error.request) {
+        console.error(`Network Error (${endpoint}): No response received`, {
+          request: error.request,
+        });
+      } else {
+        console.error(`Unexpected Error (${endpoint}):`, error.message);
       }
       throw error;
     }
@@ -41,25 +111,45 @@ class ApiClient {
   // Auth endpoints
   async getAuthChallenge(address: string) {
     return this.withErrorHandler("auth/challenge", async () => {
-      const response = await api.get(`/auth/challenge?address=${address}`);
-      return response.data;
+      const url = `/auth/challenge?address=${address}`;
+      const response = await api.get(url);
+      if (!response.data || !response.data.message || !response.data.nonce) {
+        throw new Error("Invalid challenge response from server");
+      }
+      return {
+        message: response.data.message,
+        nonce: response.data.nonce,
+      };
     });
   }
 
-  async verifyAuth(params: {
-    miniPayAddress: string;
-    signature: string;
-    message: string;
-  }) {
+  async verifyAuth(params: VerifyAuthParams) {
     return this.withErrorHandler("auth/verify", async () => {
-      const response = await api.post("/auth/verify", params);
-      return response.data;
+      const response = await api.post("/auth/verify", {
+        miniPayAddress: params.miniPayAddress,
+        signature: params.signature,
+        message: params.message,
+      });
+
+      if (!response.data || !response.data.token) {
+        throw new Error("Invalid authentication response from server");
+      }
+      return {
+        token: response.data.token,
+        address: response.data.address,
+      };
     });
   }
 
   async getAuthToken(miniPayAddress: string) {
     return this.withErrorHandler("auth/token", async () => {
-      const response = await api.post("/auth/token", { miniPayAddress });
+      const response = await api.post("/auth/token", {
+        address: miniPayAddress,
+        provider: "minipay",
+      });
+      if (!response.data || !response.data.token) {
+        throw new Error("Invalid token response from server");
+      }
       return response.data;
     });
   }
@@ -205,64 +295,6 @@ class ApiClient {
       return response.data;
     });
   }
-
-  // Fallback to mock data if API calls fail
-  private getFallbackData(endpoint: string) {
-    const mockData = {
-      profile: MOCK_PROFILE,
-      creditScore: MOCK_CREDIT_SCORE,
-      loanLimit: MOCK_LOAN_LIMIT,
-      transactionSummary: MOCK_TRANSACTION_SUMMARY,
-      loanHistory: MOCK_LOAN_HISTORY,
-    };
-    return mockData[endpoint as keyof typeof mockData];
-  }
 }
-
-// Mock data for fallbacks
-const MOCK_PROFILE = {
-  miniPayAddress: "0x1234567890abcdef",
-  creditScore: 750,
-  loanLimit: 1000,
-};
-
-const MOCK_CREDIT_SCORE = {
-  score: 750,
-  breakdown: {
-    repaymentHistory: 0.85,
-    transactionFrequency: 0.7,
-    savingsPattern: 0.6,
-    socialConnections: 0.8,
-    accountAge: 0.75,
-  },
-};
-
-const MOCK_LOAN_LIMIT = {
-  limit: 1000,
-  currency: "cUSD",
-};
-
-const MOCK_TRANSACTION_SUMMARY = {
-  totalTransactions: 24,
-  totalAmount: 2500,
-  currency: DEFAULT_CURRENCY,
-};
-
-const MOCK_LOAN_HISTORY = [
-  {
-    id: "1",
-    amount: 500,
-    currency: "cKES",
-    status: "completed",
-    date: "2023-05-15",
-  },
-  {
-    id: "2",
-    amount: 300,
-    currency: "cKES",
-    status: "active",
-    date: "2023-06-20",
-  },
-];
 
 export const apiClient = new ApiClient();

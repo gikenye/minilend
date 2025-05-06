@@ -9,61 +9,29 @@ import {
   custom,
   http,
   parseEther,
-  getContract,
   formatEther,
-  type Client,
   type PublicClient,
   type WalletClient,
-  type Transport,
-  type Account,
-  type Hash,
-  type Chain,
-  type Abi,
 } from "viem";
 import { celo, celoAlfajores } from "viem/chains";
 import { SUPPORTED_CURRENCIES, type Currency } from "@/types/currencies";
+import type { EthereumProvider } from "../types/minipay";
 
-export interface EthereumProvider {
-  request: (args: any) => Promise<any>;
-  on: (event: string, handler: (...args: any[]) => void) => void;
-  removeListener: (event: string, handler: (...args: any[]) => void) => void;
-  isMetaMask?: boolean;
-  isMiniPay?: boolean;
-}
-
-// A mapping of currency symbols to their stablecoin contract addresses
-export const STABLECOIN_ADDRESSES: Record<string, `0x${string}`> = {
-  USDC: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" as const,
-  USDT: "0xdac17f958d2ee523a2206206994597c13d831ec7" as const,
-  cUSD: "0x765de816845861e75a25fca122bb6898b8b1282a" as const,
-};
-
-// Initialize public clients for both networks
-const testnetClient = createPublicClient({
-  chain: celoAlfajores,
-  transport: http("https://alfajores-forno.celo-testnet.org"),
-}) as unknown as PublicClient;
-
-const mainnetClient = createPublicClient({
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-}) as unknown as PublicClient;
-
-// Token addresses for both networks
+// Network configuration
 const NETWORK_CONFIG = {
   mainnet: {
     stableTokenAddresses: {
       cUSD: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
       USDC: "0xeF4229c8c3250C675F21BCefa42f58EfbfF6002a",
       USDT: "0x88eEC49252c8cbc039DCdB394c0c2BA2f1637EA0",
-      cKES: "0x3aB28ecedea6CDB6fEed398e93AE18787C0cCf59", // Mainnet only
+      cKES: "0x3aB28ecedea6CDB6fEed398e93AE18787C0cCf59",
     },
     chainId: "0x42220",
     chainName: "Celo Mainnet",
   },
   testnet: {
     stableTokenAddresses: {
-      cUSD: "0x765DE816845861e75A25fCA122bb6898B8B1282a", // Updated to MiniPay test environment address
+      cUSD: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
       USDC: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
       USDT: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
     },
@@ -116,6 +84,17 @@ export const useWeb3 = () => {
   return context;
 };
 
+// Initialize public clients
+const testnetClient = createPublicClient({
+  chain: celoAlfajores,
+  transport: http("https://alfajores-forno.celo-testnet.org"),
+}) as PublicClient;
+
+const mainnetClient = createPublicClient({
+  chain: celo,
+  transport: http("https://forno.celo.org"),
+}) as PublicClient;
+
 export const useWeb3Provider = () => {
   const [address, setAddress] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -123,13 +102,9 @@ export const useWeb3Provider = () => {
   const [networkType, setNetworkType] = useState<"mainnet" | "testnet">(
     "testnet"
   );
-  const [publicClient, setPublicClient] = useState<PublicClient>(() => {
-    const client = createPublicClient({
-      chain: celoAlfajores,
-      transport: http(),
-    });
-    return client as unknown as PublicClient;
-  });
+  const [publicClient, setPublicClient] = useState<PublicClient>(
+    () => testnetClient
+  );
   const [availableCurrencies, setAvailableCurrencies] = useState<Currency[]>(
     getAvailableCurrencies("testnet")
   );
@@ -152,8 +127,7 @@ export const useWeb3Provider = () => {
       );
     }
 
-    const address = addresses[currency as keyof typeof addresses];
-    return address as `0x${string}`;
+    return addresses[currency as keyof typeof addresses] as `0x${string}`;
   };
 
   const getCurrentNetwork = async () => {
@@ -163,7 +137,6 @@ export const useWeb3Provider = () => {
   };
 
   const handleNetworkChange = async (chainId: string) => {
-    // In MiniPay test environment, always treat as testnet
     if (window?.ethereum?.isMiniPay) {
       setNetworkType("testnet");
       setPublicClient(testnetClient);
@@ -193,7 +166,6 @@ export const useWeb3Provider = () => {
           params: [],
         });
 
-        // Force testnet for MiniPay test environment
         setNetworkType("testnet");
         setPublicClient(testnetClient);
         setAvailableCurrencies(getAvailableCurrencies("testnet"));
@@ -221,7 +193,6 @@ export const useWeb3Provider = () => {
     console.log("Attempting to switch to Alfajores chain:", alfajoresChainId);
 
     try {
-      // First try to switch to the chain
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: alfajoresChainId }],
@@ -235,7 +206,6 @@ export const useWeb3Provider = () => {
         data: switchError.data,
       });
 
-      // Chain hasn't been added yet
       if (switchError.code === 4902) {
         try {
           console.log("Adding Alfajores chain to wallet...");
@@ -365,7 +335,6 @@ export const useWeb3Provider = () => {
   ) => {
     if (!window.ethereum) throw new Error("No Ethereum provider found");
 
-    // Defensive: ensure currency is supported on current network
     if (!availableCurrencies.includes(currency as Currency)) {
       throw new Error(
         `Currency ${currency} is not supported on ${networkType}`
@@ -414,7 +383,6 @@ export const useWeb3Provider = () => {
         throw new Error("No address or client available");
       }
 
-      // Match exact MiniPay implementation
       const result = await publicClient.readContract({
         abi: stableTokenABI,
         address: getStableTokenAddress(currency),
@@ -443,7 +411,6 @@ export const useWeb3Provider = () => {
         if (network === "testnet") {
           return await switchToAlfajores();
         }
-        // TODO: Implement mainnet switch
         return false;
       } catch (error) {
         console.error("Failed to switch network:", error);

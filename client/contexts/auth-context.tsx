@@ -29,6 +29,7 @@ interface AuthContextType {
   login: (accountType?: "minipay" | "external") => Promise<void>;
   logout: () => void;
   updateBalance: (balance: string) => void;
+  isMiniPay: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,25 +38,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMiniPay, setIsMiniPay] = useState(false);
 
-  // Try to restore session on mount
+  // Utility function to convert string to hex
+  const stringToHex = (str: string): string => {
+    return `0x${Buffer.from(str, "utf8").toString("hex")}`;
+  };
+
+  // Check for MiniPay wallet on mount
   useEffect(() => {
-    const token = localStorage.getItem("auth_token");
-    if (token) {
-      initializeWithToken(token);
-    } else {
-      setLoading(false);
-    }
+    const checkMiniPayWallet = async () => {
+      try {
+        if (typeof window === "undefined") {
+          setIsMiniPay(false);
+          return;
+        }
+
+        const isMiniPayEnv = !!window?.ethereum?.isMiniPay;
+        setIsMiniPay(isMiniPayEnv);
+
+        if (isMiniPayEnv) {
+          // Check if ethereum is properly initialized
+          if (!window.ethereum?.request) {
+            throw new Error("MiniPay wallet is not properly initialized");
+          }
+
+          try {
+            // Auto-login for MiniPay users
+            await login("minipay");
+          } catch (loginError: any) {
+            console.error("MiniPay login error:", loginError);
+            setError(loginError.message || "Failed to login with MiniPay");
+          }
+        } else {
+          // No MiniPay, check for stored session
+          const token = localStorage.getItem("auth_token");
+          if (token) {
+            await initializeWithToken(token);
+          }
+        }
+      } catch (err: any) {
+        console.error("MiniPay initialization error:", err);
+        setError(err.message || "Failed to initialize MiniPay");
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkMiniPayWallet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const initializeWithToken = async (token: string) => {
     try {
-      // Set token in API client
       localStorage.setItem("auth_token", token);
-
-      // Fetch user profile
       const profile = await apiClient.getUserProfile();
-
       setUser({
         accountNumber: profile.address,
         miniPayAddress: profile.address,
@@ -80,42 +116,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
 
       if (!window.ethereum) {
-        throw new Error("No wallet provider found");
+        throw new Error(
+          accountType === "minipay"
+            ? "Please install MiniPay wallet to continue"
+            : "Please install MetaMask to continue"
+        );
       }
 
-      // Request wallet connection
+      // Check wallet type compatibility
+      const isMinipayEnv = !!window.ethereum.isMiniPay;
+      if (accountType === "minipay" && !isMinipayEnv) {
+        throw new Error("Please use MiniPay wallet to continue");
+      }
+      if (accountType === "external" && isMinipayEnv) {
+        throw new Error("MetaMask connection is not supported in MiniPay");
+      }
+
+      // Requesting account addresses
       const accounts = await window.ethereum.request({
         method: "eth_requestAccounts",
+        params: [],
       });
 
       if (!accounts || !accounts[0]) {
-        throw new Error("No accounts found");
+        throw new Error("No accounts found. Please unlock your wallet.");
       }
-
       const address = accounts[0];
 
-      // Get authentication challenge
-      const { challenge } = await apiClient.getAuthChallenge(address);
+      // Get authentication challenge from your backend
+      const { message, nonce } = await apiClient.getAuthChallenge(address);
+      if (!message || !nonce) {
+        throw new Error("Invalid challenge response from server");
+      }
 
-      // Request signature
+      // Request signature - using the exact message from server
       const signature = await window.ethereum.request({
         method: "personal_sign",
-        params: [challenge, address],
+        params: [message, address],
       });
 
       // Verify signature and get token
       const { token } = await apiClient.verifyAuth({
         miniPayAddress: address,
         signature,
-        message: challenge,
+        message,
+        walletType: accountType,
       });
 
-      // Initialize session with token
+      if (!token) {
+        throw new Error("No token received from server");
+      }
+
       await initializeWithToken(token);
     } catch (err: any) {
       console.error("Login failed:", err);
       setError(err.message || "Failed to login");
       setUser(null);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -127,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   };
 
-  const updateBalance = async (balance: string) => {
+  const updateBalance = (balance: string) => {
     if (user) {
       setUser({
         ...user,
@@ -145,6 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         updateBalance,
+        isMiniPay,
       }}
     >
       {children}

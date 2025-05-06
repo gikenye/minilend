@@ -20,6 +20,9 @@ export interface EthereumProvider {
   removeListener: (event: string, handler: (...args: any[]) => void) => void;
   isMetaMask?: boolean;
   isMiniPay?: boolean;
+  ethereum?: EthereumProvider & { isMiniPay?: boolean };
+  miniPay: MiniPay;
+  isConnected: () => boolean;
 }
 
 declare global {
