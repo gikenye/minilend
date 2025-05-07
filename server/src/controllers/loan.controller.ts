@@ -38,20 +38,13 @@ export class LoanController {
     }
   };
 
-  async getLoanLimit(req: Request, res: Response): Promise<void> {
+  async getLoanLimit(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const miniPayAddress = req.headers["x-minipay-wallet"] as string;
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "MiniPay wallet address required" });
-        return;
-      }
-
-      // Get credit score first
       const creditScore = await this.creditScoreService.getCreditScore(
-        miniPayAddress
+        req.user!.address
       );
       const limitResult = await this.loanService.calculateLoanLimit(
-        miniPayAddress,
+        req.user!.address,
         creditScore
       );
       res.status(200).json(limitResult);
@@ -63,14 +56,8 @@ export class LoanController {
     }
   }
 
-  async applyForLoan(req: Request, res: Response): Promise<void> {
+  async applyForLoan(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const miniPayAddress = req.headers["x-minipay-wallet"] as string;
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "MiniPay wallet address required" });
-        return;
-      }
-
       const { amountCUSD, amountLocal, localCurrency, termDays } = req.body;
 
       // Validate required fields
@@ -80,7 +67,7 @@ export class LoanController {
       }
 
       const loan = await this.loanService.processApplication(
-        miniPayAddress,
+        req.user!.address,
         amountCUSD,
         amountLocal,
         localCurrency,
@@ -96,15 +83,12 @@ export class LoanController {
     }
   }
 
-  async getActiveLoans(req: Request, res: Response): Promise<void> {
+  async getActiveLoans(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
-      const miniPayAddress = req.headers["x-minipay-wallet"] as string;
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "MiniPay wallet address required" });
-        return;
-      }
-
-      const loans = await this.loanService.getActiveLoans(miniPayAddress);
+      const loans = await this.loanService.getActiveLoans(req.user!.address);
       res.status(200).json({ loans });
     } catch (error: any) {
       console.error("Error fetching active loans:", error);
@@ -114,16 +98,13 @@ export class LoanController {
     }
   }
 
-  async getLoanHistory(req: Request, res: Response): Promise<void> {
+  async getLoanHistory(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
-      const miniPayAddress = req.headers["x-minipay-wallet"] as string;
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "MiniPay wallet address required" });
-        return;
-      }
-
       const history = await this.loanHistoryService.getUserLoanHistory(
-        miniPayAddress
+        req.user!.address
       );
       res.status(200).json({ history });
     } catch (error: any) {
@@ -134,15 +115,9 @@ export class LoanController {
     }
   }
 
-  async makeRepayment(req: Request, res: Response): Promise<void> {
+  async makeRepayment(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { loanId, amount } = req.body;
-      const miniPayAddress = req.headers["x-minipay-address"] as string;
-
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "No MiniPay Address connected" });
-        return;
-      }
 
       if (!loanId || !amount) {
         res.status(400).json({ error: "Loan ID and amount are required" });
@@ -152,7 +127,7 @@ export class LoanController {
       const result = await this.loanService.makeRepayment(
         loanId,
         amount,
-        miniPayAddress
+        req.user!.address
       );
       res.status(200).json(result);
     } catch (error) {
@@ -161,15 +136,9 @@ export class LoanController {
     }
   }
 
-  async getLoanById(req: Request, res: Response): Promise<void> {
+  async getLoanById(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { loanId } = req.params;
-      const miniPayAddress = req.headers["x-minipay-address"] as string;
-
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "No MiniPay Address connected" });
-        return;
-      }
 
       const loan = await this.loanService.getLoanById(loanId);
       if (!loan) {
@@ -178,7 +147,9 @@ export class LoanController {
       }
 
       // Check if the user is authorized to view this loan
-      if (loan.borrowerAddress.toLowerCase() !== miniPayAddress.toLowerCase()) {
+      if (
+        loan.borrowerAddress.toLowerCase() !== req.user!.address.toLowerCase()
+      ) {
         res
           .status(403)
           .json({ error: "Unauthorized: You can only view your own loans" });

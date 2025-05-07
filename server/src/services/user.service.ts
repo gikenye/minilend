@@ -36,13 +36,13 @@ export class UserService {
 
   async getTransactionSummary(miniPayAddress: string): Promise<any> {
     try {
-      const user = await User.findById(miniPayAddress);
+      const user = await User.findOne({
+        miniPayAddress: miniPayAddress.toLowerCase(),
+      });
       if (!user) {
         throw new Error("User not found");
       }
 
-      // In a real implementation, this would call MiniPay's API
-      // For now, we'll return the stored transaction summary
       return user.transactionSummary;
     } catch (error) {
       console.error("Error fetching transaction summary:", error);
@@ -55,13 +55,13 @@ export class UserService {
     transactionData: any
   ): Promise<any> {
     try {
-      const user = await User.findById(miniPayAddress);
+      const user = await User.findOne({
+        miniPayAddress: miniPayAddress.toLowerCase(),
+      });
       if (!user) {
         throw new Error("User not found");
       }
 
-      // Update transaction summary based on new data
-      // This is a simplified version - in production, you'd have more complex logic
       user.transactionSummary = {
         ...user.transactionSummary,
         ...transactionData,
@@ -89,7 +89,9 @@ export class UserService {
     };
   }> {
     try {
-      const user = await User.findById(miniPayAddress).populate("loanHistory");
+      const user = await User.findOne({
+        miniPayAddress: miniPayAddress.toLowerCase(),
+      }).populate("loanHistory");
       if (!user) {
         throw new Error("User not found");
       }
@@ -143,7 +145,9 @@ export class UserService {
     updatedAt: Date;
   }> {
     try {
-      const user = await User.findById(miniPayAddress);
+      const user = await User.findOne({
+        miniPayAddress: miniPayAddress.toLowerCase(),
+      });
       if (!user) {
         throw new Error("User not found");
       }
@@ -179,7 +183,9 @@ export class UserService {
     }>;
   }> {
     try {
-      const user = await User.findById(miniPayAddress).populate("loanHistory");
+      const user = await User.findOne({
+        miniPayAddress: miniPayAddress.toLowerCase(),
+      }).populate("loanHistory");
       if (!user) {
         throw new Error("User not found");
       }

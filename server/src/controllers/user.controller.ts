@@ -3,17 +3,21 @@ import { UserService } from "../services/user.service";
 
 const userService = new UserService();
 
+interface AuthenticatedRequest extends Request {
+  user?: {
+    address: string;
+  };
+}
+
 class UserController {
-  async getTransactionSummary(req: Request, res: Response): Promise<void> {
+  async getTransactionSummary(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
-      const miniPayAddress = req.headers["x-minipay-address"] as string;
-
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "No MiniPay Address connected" });
-        return;
-      }
-
-      const summary = await userService.getTransactionSummary(miniPayAddress);
+      const summary = await userService.getTransactionSummary(
+        req.user!.address
+      );
       res.status(200).json(summary);
     } catch (error) {
       console.error("Error in getTransactionSummary:", error);
@@ -21,16 +25,12 @@ class UserController {
     }
   }
 
-  async getUserLiquidity(req: Request, res: Response): Promise<void> {
+  async getUserLiquidity(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
-      const miniPayAddress = req.headers["x-minipay-address"] as string;
-
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "No MiniPay Address connected" });
-        return;
-      }
-
-      const liquidity = await userService.getUserLiquidity(miniPayAddress);
+      const liquidity = await userService.getUserLiquidity(req.user!.address);
       res.status(200).json(liquidity);
     } catch (error) {
       console.error("Error in getUserLiquidity:", error);
@@ -38,16 +38,12 @@ class UserController {
     }
   }
 
-  async getUserProfile(req: Request, res: Response): Promise<void> {
+  async getUserProfile(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
-      const miniPayAddress = req.headers["x-minipay-address"] as string;
-
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "No MiniPay Address connected" });
-        return;
-      }
-
-      const profile = await userService.getUserProfile(miniPayAddress);
+      const profile = await userService.getUserProfile(req.user!.address);
       res.status(200).json(profile);
     } catch (error) {
       console.error("Error in getUserProfile:", error);
@@ -55,16 +51,12 @@ class UserController {
     }
   }
 
-  async getUserHistory(req: Request, res: Response): Promise<void> {
+  async getUserHistory(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
-      const miniPayAddress = req.headers["x-minipay-address"] as string;
-
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "No MiniPay Address connected" });
-        return;
-      }
-
-      const history = await userService.getUserHistory(miniPayAddress);
+      const history = await userService.getUserHistory(req.user!.address);
       res.status(200).json(history);
     } catch (error) {
       console.error("Error in getUserHistory:", error);

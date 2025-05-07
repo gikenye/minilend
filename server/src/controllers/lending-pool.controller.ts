@@ -1,6 +1,12 @@
 import type { Request, Response } from "express";
 import { LendingPoolService } from "../services/lending-pool.service";
 
+interface AuthenticatedRequest extends Request {
+  user?: {
+    address: string;
+  };
+}
+
 export class LendingPoolController {
   private lendingPoolService: LendingPoolService;
 
@@ -17,9 +23,15 @@ export class LendingPoolController {
     this.contributeToPool = this.contributeToPool.bind(this);
   }
 
-  async createLendingPool(req: Request, res: Response): Promise<void> {
+  async createLendingPool(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
-      const poolData = req.body;
+      const poolData = {
+        ...req.body,
+        miniPayAddress: req.user!.address,
+      };
 
       // Validate required fields
       const requiredFields = [
@@ -34,7 +46,6 @@ export class LendingPoolController {
         "riskLevel",
         "region",
         "description",
-        "miniPayAddress",
       ];
 
       const missingFields = requiredFields.filter((field) => !poolData[field]);
@@ -113,27 +124,12 @@ export class LendingPoolController {
     }
   }
 
-  async getLendingPools(req: Request, res: Response): Promise<void> {
+  async getLendingPools(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
-      const filters: any = {};
-
-      // Handle currency case-insensitively
-      if (req.query.currency) {
-        filters.currency = new RegExp(`^${req.query.currency}$`, "i");
-      }
-
-      // Add other filters
-      if (req.query.status) {
-        filters.status = req.query.status;
-      }
-      if (req.query.region) {
-        filters.region = req.query.region;
-      }
-      if (req.query.riskLevel) {
-        filters.riskLevel = req.query.riskLevel;
-      }
-
-      const pools = await this.lendingPoolService.getLendingPools(filters);
+      const pools = await this.lendingPoolService.getLendingPools();
       res.status(200).json({ pools });
     } catch (error: any) {
       console.error("Error fetching lending pools:", error);
@@ -143,7 +139,10 @@ export class LendingPoolController {
     }
   }
 
-  async getLendingPoolById(req: Request, res: Response): Promise<void> {
+  async getLendingPoolById(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
       const { poolId } = req.params;
 
@@ -162,21 +161,34 @@ export class LendingPoolController {
     }
   }
 
-  async updateLendingPool(req: Request, res: Response): Promise<void> {
+  async updateLendingPool(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
       const { poolId } = req.params;
       const updates = req.body;
 
-      const pool = await this.lendingPoolService.updateLendingPool(
-        poolId,
-        updates
-      );
+      const pool = await this.lendingPoolService.getLendingPoolById(poolId);
       if (!pool) {
         res.status(404).json({ error: "Lending pool not found" });
         return;
       }
 
-      res.status(200).json({ pool });
+      // Check if user is authorized to update this pool
+      if (
+        pool.miniPayAddress.toLowerCase() !== req.user!.address.toLowerCase()
+      ) {
+        res.status(403).json({ error: "Unauthorized to update this pool" });
+        return;
+      }
+
+      const updatedPool = await this.lendingPoolService.updateLendingPool(
+        poolId,
+        updates
+      );
+
+      res.status(200).json({ pool: updatedPool });
     } catch (error: any) {
       console.error("Error updating lending pool:", error);
       res
@@ -185,7 +197,10 @@ export class LendingPoolController {
     }
   }
 
-  async fundLendingPool(req: Request, res: Response): Promise<void> {
+  async fundLendingPool(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
       const { poolId } = req.params;
       const { amount } = req.body;
@@ -195,16 +210,26 @@ export class LendingPoolController {
         return;
       }
 
-      const pool = await this.lendingPoolService.fundLendingPool(
-        poolId,
-        amount
-      );
+      const pool = await this.lendingPoolService.getLendingPoolById(poolId);
       if (!pool) {
         res.status(404).json({ error: "Lending pool not found" });
         return;
       }
 
-      res.status(200).json({ pool });
+      // Check if user is authorized to fund this pool
+      if (
+        pool.miniPayAddress.toLowerCase() !== req.user!.address.toLowerCase()
+      ) {
+        res.status(403).json({ error: "Unauthorized to fund this pool" });
+        return;
+      }
+
+      const updatedPool = await this.lendingPoolService.fundLendingPool(
+        poolId,
+        amount
+      );
+
+      res.status(200).json({ pool: updatedPool });
     } catch (error: any) {
       console.error("Error funding lending pool:", error);
       res
@@ -213,7 +238,10 @@ export class LendingPoolController {
     }
   }
 
-  async withdrawFromLendingPool(req: Request, res: Response): Promise<void> {
+  async withdrawFromLendingPool(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
       const { poolId } = req.params;
       const { amount } = req.body;
@@ -223,16 +251,28 @@ export class LendingPoolController {
         return;
       }
 
-      const pool = await this.lendingPoolService.withdrawFromLendingPool(
-        poolId,
-        amount
-      );
+      const pool = await this.lendingPoolService.getLendingPoolById(poolId);
       if (!pool) {
         res.status(404).json({ error: "Lending pool not found" });
         return;
       }
 
-      res.status(200).json({ pool });
+      // Check if user is authorized to withdraw from this pool
+      if (
+        pool.miniPayAddress.toLowerCase() !== req.user!.address.toLowerCase()
+      ) {
+        res
+          .status(403)
+          .json({ error: "Unauthorized to withdraw from this pool" });
+        return;
+      }
+
+      const updatedPool = await this.lendingPoolService.withdrawFromLendingPool(
+        poolId,
+        amount
+      );
+
+      res.status(200).json({ pool: updatedPool });
     } catch (error: any) {
       console.error("Error withdrawing from lending pool:", error);
       res.status(400).json({
@@ -241,7 +281,7 @@ export class LendingPoolController {
     }
   }
 
-  async getPoolStatus(req: Request, res: Response): Promise<void> {
+  async getPoolStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const status = await this.lendingPoolService.getPoolStatus();
       res.status(200).json(status);
@@ -253,15 +293,12 @@ export class LendingPoolController {
     }
   }
 
-  async contributeToPool(req: Request, res: Response): Promise<void> {
+  async contributeToPool(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
     try {
       const { poolId, amount } = req.body;
-      const miniPayAddress = req.headers["x-minipay-address"] as string;
-
-      if (!miniPayAddress) {
-        res.status(400).json({ error: "No MiniPay Address connected" });
-        return;
-      }
 
       if (!poolId || !amount || amount <= 0) {
         res
@@ -273,7 +310,7 @@ export class LendingPoolController {
       const result = await this.lendingPoolService.contributeToPool(
         poolId,
         amount,
-        miniPayAddress
+        req.user!.address
       );
       res.status(200).json(result);
     } catch (error: any) {

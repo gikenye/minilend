@@ -29,10 +29,10 @@ export const miniPayAuthMiddleware = async (
           token,
           process.env.JWT_SECRET || "secret"
         ) as any;
-        
+
         // Query by miniPayAddress instead of _id
-        const user = await User.findOne({ 
-          miniPayAddress: decoded.miniPayAddress.toLowerCase() 
+        const user = await User.findOne({
+          miniPayAddress: decoded.miniPayAddress.toLowerCase(),
         });
 
         if (user) {
