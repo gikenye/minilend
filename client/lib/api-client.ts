@@ -38,13 +38,41 @@ export const api = axios.create({
 });
 
 // Add request interceptor to include auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("auth_token");
-  if (token) {
-    config.headers["Authorization"] = `Bearer ${token}`;
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
+
+// Add response interceptor to handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If the error is unauthorized and we haven't tried to refresh yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      // Clear invalid token
+      localStorage.removeItem("auth_token");
+
+      // Redirect to home page to re-authenticate
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+      return Promise.reject(error);
+    }
+    return Promise.reject(error);
+  }
+);
 
 class ApiClient {
   private async withErrorHandler<T>(

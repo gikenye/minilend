@@ -57,35 +57,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const isMiniPayEnv = !!window?.ethereum?.isMiniPay;
         setIsMiniPay(isMiniPayEnv);
 
+        // First check for existing token
+        const existingToken = localStorage.getItem("auth_token");
+        if (existingToken) {
+          try {
+            await initializeWithToken(existingToken);
+            return; // If we successfully initialized with token, don't proceed with login
+          } catch (err) {
+            console.error("Failed to initialize with stored token:", err);
+            localStorage.removeItem("auth_token");
+          }
+        }
+
+        // Only proceed with MiniPay auto-login if we don't have a valid token
         if (isMiniPayEnv) {
-          // Check if ethereum is properly initialized
           if (!window.ethereum?.request) {
             throw new Error("MiniPay wallet is not properly initialized");
           }
 
           try {
-            // Auto-login for MiniPay users
             await login("minipay");
           } catch (loginError: any) {
             console.error("MiniPay login error:", loginError);
             setError(loginError.message || "Failed to login with MiniPay");
           }
-        } else {
-          // No MiniPay, check for stored session
-          const token = localStorage.getItem("auth_token");
-          if (token) {
-            await initializeWithToken(token);
-          }
         }
       } catch (err: any) {
-        console.error("MiniPay initialization error:", err);
-        setError(err.message || "Failed to initialize MiniPay");
+        console.error("Wallet initialization error:", err);
+        setError(err.message || "Failed to initialize wallet");
       } finally {
         setLoading(false);
       }
     };
+
     checkMiniPayWallet();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const initializeWithToken = async (token: string) => {
@@ -163,7 +168,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         miniPayAddress: address,
         signature,
         message: message, // Send the original message for server verification
-        walletType: accountType,
       });
 
       if (!token) {
