@@ -6,6 +6,13 @@
 # next.js
 /.next/
 /out/
+.trunk/
+/dist
+/dist
+/builds
+/builds/*/node_modules
+/builds/*/dist
+
 
 # production
 /build

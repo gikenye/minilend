@@ -1,5 +1,4 @@
 import axios from "axios";
-import { DEFAULT_CURRENCY } from "@/types/currencies";
 
 // MiniPay detection (per docs)
 export const isMiniPay =
@@ -8,7 +7,6 @@ export const isMiniPay =
   window.ethereum.isMiniPay;
 
 // Utility: Get MiniPay address (per docs)
-// https://docs.celo.org/build/build-on-minipay/code-library#get-the-connected-users-address-without-any-library
 export async function getMiniPayAddress(): Promise<string | null> {
   if (
     typeof window !== "undefined" &&
@@ -29,36 +27,7 @@ export async function getMiniPayAddress(): Promise<string | null> {
   return null;
 }
 
-// Utility: Connect external wallet (MetaMask, etc.)
-// Only runs if NOT in MiniPay
-// https://docs.celo.org/build/build-on-minipay/quickstart
-export async function connectWallet(): Promise<string | null> {
-  if (
-    typeof window !== "undefined" &&
-    window.ethereum &&
-    !window.ethereum.isMiniPay
-  ) {
-    try {
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-        params: [],
-      });
-      return accounts[0] || null;
-    } catch (e) {
-      console.error("Failed to connect external wallet:", e);
-      return null;
-    }
-  }
-  return null;
-}
-
-// Optionally, show a warning if not in MiniPay (UI implementation recommended)
-if (typeof window !== "undefined" && !isMiniPay) {
-  console.warn(
-    "Please open this app in MiniPay or connect an external wallet."
-  );
-}
-
+// Create API instance
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const api = axios.create({
@@ -77,13 +46,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-interface VerifyAuthParams {
-  miniPayAddress: string;
-  signature: string;
-  message: string;
-  walletType: "minipay" | "external";
-}
-
 class ApiClient {
   private async withErrorHandler<T>(
     endpoint: string,
@@ -98,9 +60,7 @@ class ApiClient {
           data: error.response.data,
         });
       } else if (error.request) {
-        console.error(`Network Error (${endpoint}): No response received`, {
-          request: error.request,
-        });
+        console.error(`Network Error (${endpoint}): No response received`);
       } else {
         console.error(`Unexpected Error (${endpoint}):`, error.message);
       }
@@ -109,48 +69,28 @@ class ApiClient {
   }
 
   // Auth endpoints
-  async getAuthChallenge(address: string) {
+  async getAuthChallenge(miniPayAddress: string) {
     return this.withErrorHandler("auth/challenge", async () => {
-      const url = `/auth/challenge?address=${address}`;
-      const response = await api.get(url);
-      if (!response.data || !response.data.message || !response.data.nonce) {
-        throw new Error("Invalid challenge response from server");
-      }
-      return {
-        message: response.data.message,
-        nonce: response.data.nonce,
-      };
+      // Server expects: GET /auth/challenge?address={miniPayAddress}
+      const response = await api.get("/auth/challenge", {
+        params: { address: miniPayAddress },
+      });
+      return response.data; // Returns { message: string, nonce: string }
     });
   }
 
-  async verifyAuth(params: VerifyAuthParams) {
+  async verifyAuth(params: {
+    miniPayAddress: string;
+    signature: string;
+    message: string;
+  }) {
     return this.withErrorHandler("auth/verify", async () => {
-      const response = await api.post("/auth/verify", {
-        miniPayAddress: params.miniPayAddress,
-        signature: params.signature,
-        message: params.message,
-      });
-
-      if (!response.data || !response.data.token) {
-        throw new Error("Invalid authentication response from server");
+      // Server expects: POST /auth/verify with { miniPayAddress, signature, message }
+      const response = await api.post("/auth/verify", params);
+      if (response.data.token) {
+        localStorage.setItem("auth_token", response.data.token);
       }
-      return {
-        token: response.data.token,
-        address: response.data.address,
-      };
-    });
-  }
-
-  async getAuthToken(miniPayAddress: string) {
-    return this.withErrorHandler("auth/token", async () => {
-      const response = await api.post("/auth/token", {
-        address: miniPayAddress,
-        provider: "minipay",
-      });
-      if (!response.data || !response.data.token) {
-        throw new Error("Invalid token response from server");
-      }
-      return response.data;
+      return response.data; // Returns { success: boolean, address: string, token: string }
     });
   }
 
@@ -189,7 +129,6 @@ class ApiClient {
     riskLevel: string;
     region: string;
     description: string;
-    miniPayAddress: string;
   }) {
     return this.withErrorHandler("lending-pools", async () => {
       const response = await api.post("/api/lending-pools", poolData);
@@ -232,7 +171,6 @@ class ApiClient {
     amountLocal: number;
     localCurrency: string;
     termDays: number;
-    miniPayAddress: string;
   }) {
     return this.withErrorHandler("loans/apply", async () => {
       const response = await api.post("/api/loans/apply", loanData);
@@ -262,11 +200,7 @@ class ApiClient {
     });
   }
 
-  async processRepayment(repaymentData: {
-    loanId: string;
-    amount: number;
-    miniPayAddress: string;
-  }) {
+  async processRepayment(repaymentData: { loanId: string; amount: number }) {
     return this.withErrorHandler("repayment/process", async () => {
       const response = await api.post("/api/repayment/process", repaymentData);
       return response.data;

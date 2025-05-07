@@ -149,17 +149,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Invalid challenge response from server");
       }
 
-      // Request signature - using the exact message from server
+      // Convert the message to hex format before signing
+      const messageToSign = stringToHex(message);
+
+      // Request signature with the hex-encoded message
       const signature = await window.ethereum.request({
         method: "personal_sign",
-        params: [message, address],
+        params: [messageToSign, address],
       });
 
-      // Verify signature and get token
+      // Verify signature and get token using the original message
       const { token } = await apiClient.verifyAuth({
         miniPayAddress: address,
         signature,
-        message,
+        message: message, // Send the original message for server verification
         walletType: accountType,
       });
 

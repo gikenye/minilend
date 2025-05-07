@@ -12,6 +12,14 @@ dist
 dist/next
 # production
 /build
+.trunk/
+
+/trunk
+/build
+/builds
+/builds/*
+/builds/*/node_modules
+/builds/*/dist
 
 # debug
 npm-debug.log*
