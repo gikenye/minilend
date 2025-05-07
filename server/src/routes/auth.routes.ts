@@ -68,8 +68,15 @@ router.post("/verify", (req, res) => {
   // Authentication successful
   delete nonceCache[miniPayAddress.toLowerCase()]; // Invalidate nonce after use
 
-  // Generate JWT token (in a real implementation)
-  const token = "YOUR_JWT_TOKEN_HERE";
+  // Generate JWT token
+  const token = jwt.sign(
+    {
+      userId: miniPayAddress.toLowerCase(), // Use address as ID for now
+      miniPayAddress: miniPayAddress.toLowerCase(),
+    },
+    process.env.JWT_SECRET || "secret",
+    { expiresIn: "7d" }
+  );
 
   return res.json({
     success: true,
@@ -130,10 +137,21 @@ router.post("/verify-session", (req, res) => {
 
     // Authentication successful
     delete nonceCache[miniPayAddress.toLowerCase()]; // Invalidate nonce after use
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: miniPayAddress.toLowerCase(), // Use address as ID for now
+        miniPayAddress: miniPayAddress.toLowerCase(),
+      },
+      process.env.JWT_SECRET || "secret",
+      { expiresIn: "7d" }
+    );
+
     return res.json({
       success: true,
       address: miniPayAddress,
-      token: "YOUR_JWT_TOKEN_HERE", // You might want to add JWT token generation here
+      token,
     });
   } catch (error) {
     console.error("Unexpected error in verify session route:", error);
