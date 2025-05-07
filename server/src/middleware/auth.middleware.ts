@@ -29,16 +29,19 @@ export const miniPayAuthMiddleware = async (
           token,
           process.env.JWT_SECRET || "secret"
         ) as any;
-        const user = await User.findById(decoded.userId);
+        
+        // Query by miniPayAddress instead of _id
+        const user = await User.findOne({ 
+          miniPayAddress: decoded.miniPayAddress.toLowerCase() 
+        });
 
         if (user) {
-          // Set the user in the request
           req.user = { address: user.miniPayAddress };
           return next();
         }
       } catch (jwtError) {
         console.error("JWT verification error:", jwtError);
-        // Continue to MiniPay authentication if JWT fails
+        return res.status(401).json({ error: "Invalid token" });
       }
     }
 
