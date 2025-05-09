@@ -62,24 +62,25 @@ export function LoanDashboard({
   const router = useRouter();
   const { toast } = useToast();
   const { getStableTokenBalance, publicClient, address } = useWeb3();
-  const { getWithdrawable, getUserLoan, deposit } = useLending();
+  const { getWithdrawable, getUserLoan, deposit, getYields } = useLending();
   const [balance, setBalance] = useState<string>("0");
   const [withdrawable, setWithdrawable] = useState<string>("0");
   const [currentLoan, setCurrentLoan] = useState(activeLoan);
   const [showDepositDialog, setShowDepositDialog] = useState(false);
+  const [yields, setYields] = useState({ netYield: "0", grossYield: "0", usedForLoanRepayment: "0" });
 
   const fetchBalances = async () => {
     try {
-      const [balanceResult, withdrawableResult, loanResult] = await Promise.all(
-        [
-          getStableTokenBalance(DEFAULT_CURRENCY),
-          getWithdrawable(),
-          getUserLoan(),
-        ]
-      );
+      const [balanceResult, withdrawableResult, loanResult, yieldsResult] = await Promise.all([
+        getStableTokenBalance(DEFAULT_CURRENCY),
+        getWithdrawable(),
+        getUserLoan(),
+        getYields(),
+      ]);
 
       setBalance(balanceResult);
       setWithdrawable(withdrawableResult.withdrawable);
+      setYields(yieldsResult);
 
       if (loanResult && loanResult.active) {
         const principal = Number(loanResult.principal);
@@ -104,7 +105,7 @@ export function LoanDashboard({
 
   useEffect(() => {
     fetchBalances();
-  }, [getStableTokenBalance, getWithdrawable, getUserLoan]);
+  }, [getStableTokenBalance, getWithdrawable, getUserLoan, getYields]);
 
   const handleDeposit = async () => {
     if (!depositAmount) return;
@@ -261,7 +262,7 @@ export function LoanDashboard({
           <DialogHeader>
             <DialogTitle>Add Money to Your Account</DialogTitle>
             <DialogDescription>
-              Add funds directly from your MiniPay wallet to use in MiniLend
+              Choose from your available assets to deposit into the lending pool
             </DialogDescription>
           </DialogHeader>
           
@@ -269,6 +270,10 @@ export function LoanDashboard({
             onDepositComplete={() => {
               fetchBalances();
               setShowDepositDialog(false);
+              toast({
+                title: "Balance Updated",
+                description: "Your deposit has been added to your account and is now earning interest.",
+              });
             }} 
           />
           
@@ -396,7 +401,7 @@ export function LoanDashboard({
             <div className="text-sm">
               <span className="font-bold text-green-600">
                 cKES{" "}
-                {(Number(balance) * 0.05 * CKES_EXCHANGE_RATE).toLocaleString()}
+                {(Number(yields.netYield) * CKES_EXCHANGE_RATE).toLocaleString()}
               </span>
             </div>
           </CardContent>

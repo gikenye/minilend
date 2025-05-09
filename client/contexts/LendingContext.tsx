@@ -10,6 +10,7 @@ import {
   calculateCreditScore,
   type CreditScoreResult,
 } from "@/lib/credit-scoring";
+import { executeWithRpcFallback, switchRpcOnFailure } from "@/lib/blockchain-utils";
 
 interface Yields {
   grossYield: string;
@@ -76,139 +77,145 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
     if (!walletClient || !address || !publicClient)
       throw new Error("Wallet not connected");
 
-    // First approve the contract to spend tokens
-    const tokenAddress = getStableTokenAddress(application.currency);
-    const amountBigInt = BigInt(Math.floor(Number(application.amount) * 1e18));
+    return await executeWithRpcFallback(async () => {
+      // First approve the contract to spend tokens
+      const tokenAddress = getStableTokenAddress(application.currency);
+      const amountBigInt = BigInt(Math.floor(Number(application.amount) * 1e18));
 
-    // Approve the contract to spend tokens
-    const approvalHash = await walletClient.writeContract({
-      address: tokenAddress,
-      abi: stableTokenABI,
-      functionName: "approve",
-      args: [CONTRACT_ADDRESS, amountBigInt],
-      account: address,
-      chain: publicClient.chain,
+      // Approve the contract to spend tokens
+      const approvalHash = await walletClient.writeContract({
+        address: tokenAddress,
+        abi: stableTokenABI,
+        functionName: "approve",
+        args: [CONTRACT_ADDRESS, amountBigInt],
+        account: address,
+        chain: publicClient.chain,
+      });
+
+      // Wait for approval transaction to be mined
+      await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
+
+      // Then borrow
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: minilendABI,
+        functionName: "borrow",
+        args: [getStableTokenAddress(application.currency), amountBigInt],
+        account: address,
+        chain: publicClient.chain,
+      });
+
+      await fetchLoans();
+      return hash;
     });
-
-    // Wait for approval transaction to be mined
-    await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
-
-    // Then borrow
-    const hash = await walletClient.writeContract({
-      address: CONTRACT_ADDRESS,
-      abi: minilendABI,
-      functionName: "borrow",
-      args: [getStableTokenAddress(application.currency), amountBigInt],
-      account: address,
-      chain: publicClient.chain,
-    });
-
-    await fetchLoans();
-    return hash;
   };
 
   const repayLoan = async (amount: string): Promise<Hash> => {
     if (!walletClient || !address || !publicClient) throw new Error("Wallet not connected");
 
-    const tokenAddress = getStableTokenAddress(DEFAULT_CURRENCY);
-    const amountBigInt = BigInt(Math.floor(Number(amount) * 1e18));
+    return await executeWithRpcFallback(async () => {
+      const tokenAddress = getStableTokenAddress(DEFAULT_CURRENCY);
+      const amountBigInt = BigInt(Math.floor(Number(amount) * 1e18));
 
-    // First approve the contract to spend tokens
-    const approvalHash = await walletClient.writeContract({
-      address: tokenAddress,
-      abi: stableTokenABI,
-      functionName: "approve",
-      args: [CONTRACT_ADDRESS, amountBigInt],
-      account: address,
-      chain: publicClient.chain,
+      // First approve the contract to spend tokens
+      const approvalHash = await walletClient.writeContract({
+        address: tokenAddress,
+        abi: stableTokenABI,
+        functionName: "approve",
+        args: [CONTRACT_ADDRESS, amountBigInt],
+        account: address,
+        chain: publicClient.chain,
+      });
+
+      // Wait for approval transaction to be mined
+      await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
+
+      // Then repay the loan
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: minilendABI,
+        functionName: "repay",
+        args: [tokenAddress, amountBigInt],
+        account: address,
+        chain: publicClient.chain,
+      });
+
+      await fetchLoans();
+      return hash;
     });
-
-    // Wait for approval transaction to be mined
-    await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
-
-    // Then repay the loan
-    const hash = await walletClient.writeContract({
-      address: CONTRACT_ADDRESS,
-      abi: minilendABI,
-      functionName: "repay",
-      args: [tokenAddress, amountBigInt],
-      account: address,
-      chain: publicClient.chain,
-    });
-
-    await fetchLoans();
-    return hash;
   };
 
   const fetchLoans = async () => {
     if (!publicClient || !address) return;
 
     try {
-      // The contract doesn't have getLoansByBorrower function
-      // Use events to get loan history instead
-      const loanEvents = await publicClient.getLogs({
-        address: CONTRACT_ADDRESS,
-        event: {
-          type: "event",
-          name: "LoanCreated",
-          inputs: [
-            { indexed: true, type: "address", name: "user" },
-            { indexed: true, type: "address", name: "token" },
-            { indexed: false, type: "uint256", name: "amount" }
-          ]
-        },
-        args: { user: address },
-        fromBlock: BigInt(0),
-        toBlock: "latest"
-      });
+      await executeWithRpcFallback(async () => {
+        // Use events to get loan history instead
+        const loanEvents = await publicClient.getLogs({
+          address: CONTRACT_ADDRESS,
+          event: {
+            type: "event",
+            name: "LoanCreated",
+            inputs: [
+              { indexed: true, type: "address", name: "user" },
+              { indexed: true, type: "address", name: "token" },
+              { indexed: false, type: "uint256", name: "amount" }
+            ]
+          },
+          args: { user: address },
+          fromBlock: BigInt(0),
+          toBlock: "latest"
+        });
 
-      const repaymentEvents = await publicClient.getLogs({
-        address: CONTRACT_ADDRESS,
-        event: {
-          type: "event",
-          name: "LoanRepaid",
-          inputs: [
-            { indexed: true, type: "address", name: "user" },
-            { indexed: true, type: "address", name: "token" },
-            { indexed: false, type: "uint256", name: "amount" }
-          ]
-        },
-        args: { user: address },
-        fromBlock: BigInt(0),
-        toBlock: "latest"
-      });
+        const repaymentEvents = await publicClient.getLogs({
+          address: CONTRACT_ADDRESS,
+          event: {
+            type: "event",
+            name: "LoanRepaid",
+            inputs: [
+              { indexed: true, type: "address", name: "user" },
+              { indexed: true, type: "address", name: "token" },
+              { indexed: false, type: "uint256", name: "amount" }
+            ]
+          },
+          args: { user: address },
+          fromBlock: BigInt(0),
+          toBlock: "latest"
+        });
 
-      // Process loan events into Loan objects
-      const processedLoans: Loan[] = [];
-      
-      for (let i = 0; i < loanEvents.length; i++) {
-        const loanEvent = loanEvents[i];
-        const loan: Loan = {
-          id: i,
-          borrower: address,
-          amount: loanEvent.args?.amount as bigint || BigInt(0),
-          duration: 30, // Default 30 days loan term
-          startTime: Number(loanEvent.blockNumber || 0),
-          isRepaid: false,
-          currency: (loanEvent.args?.token as string) || ""
-        };
-
-        // Check if this loan is repaid by finding matching repayment events
-        const repayment = repaymentEvents.find(event => 
-          event.args?.token === loan.currency && 
-          event.blockNumber && 
-          loanEvent.blockNumber && 
-          event.blockNumber > loanEvent.blockNumber
-        );
+        // Process loan events into Loan objects
+        const processedLoans: Loan[] = [];
         
-        if (repayment) {
-          loan.isRepaid = true;
+        for (let i = 0; i < loanEvents.length; i++) {
+          const loanEvent = loanEvents[i];
+          const loan: Loan = {
+            id: i,
+            borrower: address,
+            amount: loanEvent.args?.amount as bigint || BigInt(0),
+            duration: 30, // Default 30 days loan term
+            startTime: Number(loanEvent.blockNumber || 0),
+            isRepaid: false,
+            currency: (loanEvent.args?.token as string) || ""
+          };
+
+          // Check if this loan is repaid by finding matching repayment events
+          const repayment = repaymentEvents.find(event => 
+            event.args?.token === loan.currency && 
+            event.blockNumber && 
+            loanEvent.blockNumber && 
+            event.blockNumber > loanEvent.blockNumber
+          );
+          
+          if (repayment) {
+            loan.isRepaid = true;
+          }
+          
+          processedLoans.push(loan);
         }
-        
-        processedLoans.push(loan);
-      }
 
-      setLoans(processedLoans);
+        setLoans(processedLoans);
+        return processedLoans;
+      });
     } catch (error) {
       console.error("Error fetching loans:", error);
       // Set empty array on error
@@ -220,25 +227,28 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
     if (!publicClient || !address) return;
 
     try {
-      // Use the userLoans function instead of getActiveLoan
-      const userLoanData = await getUserLoan();
-      
-      if (userLoanData && userLoanData.active && userLoanData.principal > BigInt(0)) {
-        // Create a Loan object from userLoanData
-        const activeLoanData: Loan = {
-          id: 0,
-          borrower: address,
-          amount: userLoanData.principal,
-          duration: 30, // Default 30 days term
-          startTime: Number(userLoanData.lastUpdate),
-          isRepaid: false,
-          currency: DEFAULT_CURRENCY
-        };
+      // Use executeWithRpcFallback for RPC resilience
+      await executeWithRpcFallback(async () => {
+        // Use the userLoans function instead of getActiveLoan
+        const userLoanData = await getUserLoan();
+        
+        if (userLoanData && userLoanData.active && userLoanData.principal > BigInt(0)) {
+          // Create a Loan object from userLoanData
+          const activeLoanData: Loan = {
+            id: 0,
+            borrower: address,
+            amount: userLoanData.principal,
+            duration: 30, // Default 30 days term
+            startTime: Number(userLoanData.lastUpdate),
+            isRepaid: false,
+            currency: DEFAULT_CURRENCY
+          };
 
-        setActiveLoan(activeLoanData);
-      } else {
-        setActiveLoan(null);
-      }
+          setActiveLoan(activeLoanData);
+        } else {
+          setActiveLoan(null);
+        }
+      });
     } catch (error) {
       console.error("Error fetching active loan:", error);
       setActiveLoan(null);
@@ -250,7 +260,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       throw new Error("Web3 not initialized");
     }
 
-    try {
+    return await executeWithRpcFallback(async () => {
       // Wrap in try-catch to handle potential ABI mismatch
       const result = await publicClient
         .readContract({
@@ -271,10 +281,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
         withdrawable: withdrawable.toString(),
         usedForLoan: usedForLoan.toString(),
       };
-    } catch (error) {
-      console.error("Error getting withdrawable amount:", error);
-      throw error;
-    }
+    });
   };
 
   const getUserLoan = async (): Promise<UserLoan> => {
@@ -282,7 +289,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       throw new Error("Web3 not initialized");
     }
 
-    try {
+    return await executeWithRpcFallback(async () => {
       // Wrap in try-catch to handle potential ABI mismatch
       const result = await publicClient
         .readContract({
@@ -310,29 +317,28 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
         interestAccrued,
         lastUpdate,
       };
-    } catch (error) {
-      console.error("Error getting user loan:", error);
-      throw error;
-    }
+    });
   };
 
   const borrow = async (amount: string): Promise<Hash> => {
     if (!walletClient || !address || !publicClient) throw new Error("Wallet not connected");
 
-    const hash = await walletClient.writeContract({
-      address: CONTRACT_ADDRESS,
-      abi: minilendABI,
-      functionName: "borrow",
-      args: [
-        getStableTokenAddress(DEFAULT_CURRENCY),
-        BigInt(Math.floor(Number(amount) * 1e18)),
-      ],
-      account: address,
-      chain: publicClient.chain,
-    });
+    return await executeWithRpcFallback(async () => {
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: minilendABI,
+        functionName: "borrow",
+        args: [
+          getStableTokenAddress(DEFAULT_CURRENCY),
+          BigInt(Math.floor(Number(amount) * 1e18)),
+        ],
+        account: address,
+        chain: publicClient.chain,
+      });
 
-    await fetchLoans();
-    return hash;
+      await fetchLoans();
+      return hash;
+    });
   };
 
   const getYields = async (): Promise<Yields> => {
@@ -341,25 +347,27 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const result = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: minilendABI,
-        functionName: "getYields",
-        args: [getStableTokenAddress(DEFAULT_CURRENCY), address],
+      return await executeWithRpcFallback(async () => {
+        const result = await publicClient.readContract({
+          address: CONTRACT_ADDRESS,
+          abi: minilendABI,
+          functionName: "getYields",
+          args: [getStableTokenAddress(DEFAULT_CURRENCY), address],
+        });
+
+        // Result is a struct, not an array
+        const yields = result as {
+          grossYield: bigint;
+          netYield: bigint;
+          usedForLoanRepayment: bigint;
+        };
+
+        return {
+          grossYield: yields.grossYield.toString(),
+          netYield: yields.netYield.toString(),
+          usedForLoanRepayment: yields.usedForLoanRepayment.toString(),
+        };
       });
-
-      // Result is a struct, not an array
-      const yields = result as {
-        grossYield: bigint;
-        netYield: bigint;
-        usedForLoanRepayment: bigint;
-      };
-
-      return {
-        grossYield: yields.grossYield.toString(),
-        netYield: yields.netYield.toString(),
-        usedForLoanRepayment: yields.usedForLoanRepayment.toString(),
-      };
     } catch (error) {
       console.error("Error fetching yields:", error);
       return {
@@ -376,12 +384,14 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const score = await calculateCreditScore(
-        address,
-        CONTRACT_ADDRESS,
-        publicClient
-      );
-      return score;
+      return await executeWithRpcFallback(async () => {
+        const score = await calculateCreditScore(
+          address,
+          CONTRACT_ADDRESS,
+          publicClient
+        );
+        return score;
+      });
     } catch (error) {
       console.error("Error calculating credit score:", error);
       // Return a default score if calculation fails
@@ -400,34 +410,36 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
   const deposit = async (tokenType: string, amount: string): Promise<Hash> => {
     if (!walletClient || !address || !publicClient) throw new Error("Wallet not connected");
 
-    const tokenAddress = getStableTokenAddress(tokenType);
-    const amountBigInt = BigInt(Math.floor(Number(amount) * 1e18));
+    return await executeWithRpcFallback(async () => {
+      const tokenAddress = getStableTokenAddress(tokenType);
+      const amountBigInt = BigInt(Math.floor(Number(amount) * 1e18));
 
-    // First approve the contract to spend tokens
-    const approvalHash = await walletClient.writeContract({
-      address: tokenAddress,
-      abi: stableTokenABI,
-      functionName: "approve",
-      args: [CONTRACT_ADDRESS, amountBigInt],
-      account: address,
-      chain: publicClient.chain,
+      // First approve the contract to spend tokens
+      const approvalHash = await walletClient.writeContract({
+        address: tokenAddress,
+        abi: stableTokenABI,
+        functionName: "approve",
+        args: [CONTRACT_ADDRESS, amountBigInt],
+        account: address,
+        chain: publicClient.chain,
+      });
+
+      // Wait for approval transaction to be mined
+      await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
+
+      // Then deposit into lending pool
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: minilendABI,
+        functionName: "deposit",
+        args: [tokenAddress, amountBigInt],
+        account: address,
+        chain: publicClient.chain,
+      });
+
+      await fetchLoans();
+      return hash;
     });
-
-    // Wait for approval transaction to be mined
-    await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
-
-    // Then deposit into lending pool
-    const hash = await walletClient.writeContract({
-      address: CONTRACT_ADDRESS,
-      abi: minilendABI,
-      functionName: "deposit",
-      args: [tokenAddress, amountBigInt],
-      account: address,
-      chain: publicClient.chain,
-    });
-
-    await fetchLoans();
-    return hash;
   };
 
   return (

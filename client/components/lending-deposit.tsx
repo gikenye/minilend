@@ -28,6 +28,8 @@ import { celoAlfajores } from "viem/chains";
 import { stableTokenABI } from "@celo/abis";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLending } from "@/contexts/LendingContext";
+import { executeWithRpcFallback, resetRpcConnection } from "@/lib/blockchain-utils";
+import { NetworkStatus } from "@/components/ui/network-status";
 
 // Token addresses on Alfajores
 const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
@@ -49,7 +51,7 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
   const [currency, setCurrency] = useState<string>("cUSD");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [networkStatus, setNetworkStatus] = useState<'checking' | 'connected' | 'error'>('checking');
+  const [networkStatus, setNetworkStatus] = useState<'connecting' | 'connected' | 'error' | 'offline'>('connecting');
   const [lendingSuccess, setLendingSuccess] = useState(false);
   const [lastLendAmount, setLastLendAmount] = useState("");
   const [lastLendCurrency, setLastLendCurrency] = useState("");
@@ -66,6 +68,9 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
   useEffect(() => {
     const checkNetwork = async () => {
       try {
+        // Reset RPC connection on component mount to ensure fresh state
+        resetRpcConnection();
+        
         if (!window.ethereum) {
           setNetworkStatus('error');
           return;
@@ -78,7 +83,19 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
 
         // Alfajores testnet chain ID is 0xaef3 (44787)
         if (chainId === '0xaef3') {
-          setNetworkStatus('connected');
+          // Verify RPC connectivity by trying to fetch the latest block
+          try {
+            await executeWithRpcFallback(async () => {
+              const blockNumber = await publicClient.getBlockNumber();
+              console.log(`Connected to blockchain at block ${blockNumber}`);
+              return blockNumber;
+            });
+            setNetworkStatus('connected');
+          } catch (rpcError) {
+            console.error("RPC connection error:", rpcError);
+            setNetworkStatus('offline');
+            setError("Connected to Celo network but can't reach the blockchain RPC. We'll try alternate connections.");
+          }
         } else {
           setNetworkStatus('error');
           setError(`Connected to wrong network. Please connect to Celo Alfajores.`);
@@ -138,8 +155,11 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
         description: "You'll need to approve the transaction and then confirm the deposit.",
       });
 
+      // Reset RPC connection before initiating the transaction
+      resetRpcConnection();
+
       // Call the deposit function from LendingContext
-      // This already includes the approval step internally
+      // This already uses executeWithRpcFallback internally now
       const hash = await deposit(currency, amount);
 
       // Check if we received a transaction hash
@@ -158,38 +178,54 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
         transport: custom(window.ethereum as any),
       });
       
-      // Wait for confirmation
+      // Wait for confirmation using our fallback mechanism
       try {
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-        
-        if (receipt.status === "success") {
-          toast({
-            title: "Lending Complete",
-            description: `Your contribution of ${amount} ${currency} has been added to the lending pool!`,
-          });
+        // Use executeWithRpcFallback to handle RPC errors during waitForTransactionReceipt
+        await executeWithRpcFallback(async () => {
+          const receipt = await publicClient.waitForTransactionReceipt({ hash });
           
-          // Store the successful lending details
-          setLastLendAmount(amount);
-          setLastLendCurrency(currency);
-          setLendingSuccess(true);
-          
-          // Clear input field
-          setAmount("");
-          
-          // Notify parent component
-          if (onLendingComplete) {
-            onLendingComplete();
+          if (receipt.status === "success") {
+            toast({
+              title: "Lending Complete",
+              description: `Your contribution of ${amount} ${currency} has been added to the lending pool!`,
+            });
+            
+            // Store the successful lending details
+            setLastLendAmount(amount);
+            setLastLendCurrency(currency);
+            setLendingSuccess(true);
+            
+            // Clear input field
+            setAmount("");
+            
+            // Notify parent component
+            if (onLendingComplete) {
+              onLendingComplete();
+            }
+          } else {
+            throw new Error("Transaction failed");
           }
-        } else {
-          throw new Error("Transaction failed");
-        }
+          
+          return receipt;
+        });
       } catch (waitError) {
         console.error("Error waiting for transaction:", waitError);
-        // Even if waiting fails, we still had a successful submission
-        toast({
-          title: "Lending Submitted",
-          description: "Your transaction was submitted but we couldn't confirm its completion. Please check your balance later.",
-        });
+        // Check if it's an RPC error specifically
+        const errorMessage = waitError instanceof Error ? waitError.message : String(waitError);
+        
+        if (errorMessage.includes('block is out of range') || 
+            errorMessage.includes('RpcRequestError') ||
+            errorMessage.includes('timeout')) {
+          toast({
+            title: "Lending Likely Successful",
+            description: "Your transaction was submitted but we couldn't verify its completion due to network issues. Please check your balance later.",
+          });
+        } else {
+          toast({
+            title: "Transaction Status Unknown",
+            description: "Your transaction was submitted but we couldn't confirm its status. Please check your balance later.",
+          });
+        }
         
         // Still consider it a success since the transaction was submitted
         setLastLendAmount(amount);
@@ -205,15 +241,77 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
       
     } catch (error: any) {
       console.error("Lending error:", error);
-      setError(error.message || "An error occurred while processing your lending transaction.");
+      
+      // Handle RPC-specific errors with clearer messages
+      let errorMessage = error.message || "An error occurred while processing your lending transaction.";
+      
+      if (errorMessage.includes('block is out of range')) {
+        errorMessage = "Network synchronization issue. Please try again in a few moments.";
+      } else if (errorMessage.includes('RpcRequestError')) {
+        errorMessage = "Network connection issue. Please check your internet connection and try again.";
+      } else if (errorMessage.includes('rejected')) {
+        errorMessage = "Transaction was rejected. Please try again.";
+      } else if (errorMessage.includes('insufficient funds')) {
+        errorMessage = "Insufficient funds for this transaction. Please check your balance.";
+      }
+      
+      setError(errorMessage);
       toast({
         title: "Lending Failed",
-        description: error.message || "An error occurred while processing your lending transaction.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Retry connection handler
+  const handleRetryConnection = () => {
+    setNetworkStatus('connecting');
+    setError(null);
+    // Re-run the network check
+    const checkNetwork = async () => {
+      try {
+        resetRpcConnection();
+        
+        if (!window.ethereum) {
+          setNetworkStatus('error');
+          return;
+        }
+
+        // Get MiniPay network status and verify RPC connectivity
+        const chainId = await window.ethereum.request({ 
+          method: 'eth_chainId'
+        });
+
+        if (chainId === '0xaef3') {
+          try {
+            await executeWithRpcFallback(async () => {
+              return await publicClient.getBlockNumber();
+            });
+            setNetworkStatus('connected');
+            
+            // Show success toast
+            toast({
+              title: "Connection Restored",
+              description: "Successfully reconnected to the Celo network.",
+            });
+          } catch (rpcError) {
+            setNetworkStatus('offline');
+            setError("Connected to Celo network but can't reach the blockchain RPC. We'll try alternate connections.");
+          }
+        } else {
+          setNetworkStatus('error');
+          setError(`Connected to wrong network. Please connect to Celo Alfajores.`);
+        }
+      } catch (err) {
+        console.error("Error checking network:", err);
+        setNetworkStatus('error');
+      }
+    };
+    
+    checkNetwork();
   };
 
   return (
@@ -225,7 +323,7 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
             Lend to the Community
           </CardTitle>
           <div className="flex items-center gap-2">
-            {networkStatus === 'checking' && (
+            {networkStatus === 'connecting' && (
               <div className="flex items-center">
                 <Wifi className="h-4 w-4 text-amber-500 animate-pulse mr-1" />
                 <span className="text-xs text-muted-foreground">Checking...</span>
@@ -237,7 +335,7 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
                 <span className="text-xs text-muted-foreground">Connected to Celo</span>
               </div>
             )}
-            {networkStatus === 'error' && (
+            {(networkStatus === 'error' || networkStatus === 'offline') && (
               <div className="flex items-center">
                 <AlertCircle className="h-4 w-4 text-destructive mr-1" />
                 <span className="text-xs text-muted-foreground">Network Error</span>
@@ -250,100 +348,112 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {lendingSuccess ? (
-          <div className="flex flex-col items-center py-4 space-y-4">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-center">Lending Successful!</h3>
-            <p className="text-center text-muted-foreground">
-              Your contribution of {lastLendAmount} {lastLendCurrency} has been added to the lending pool.
-            </p>
-            <p className="text-sm text-center text-muted-foreground">
-              You will start earning interest on your contribution immediately.
-            </p>
-            <Button 
-              variant="outline"
-              className="mt-2"
-              onClick={() => setLendingSuccess(false)}
-            >
-              Make another contribution
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
-              <Select
-                defaultValue="cUSD"
-                onValueChange={(value) => setCurrency(value)}
-                value={currency}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select currency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cUSD">cUSD (Celo Dollar)</SelectItem>
-                  <SelectItem value="cEUR">cEUR (Celo Euro)</SelectItem>
-                  <SelectItem value="cREAL">cREAL (Celo Real)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label htmlFor="amount">Amount</Label>
-                <span className="text-xs text-muted-foreground">
-                  Available: {parseFloat(availableBalance).toFixed(2)} {currency}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <CircleDollarSign className="mr-2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="amount"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                />
-              </div>
-              <div className="flex justify-end">
+        {(networkStatus === 'error' || networkStatus === 'offline') && (
+          <NetworkStatus 
+            status={networkStatus} 
+            error={error || undefined}
+            onRetry={handleRetryConnection} 
+          />
+        )}
+        
+        {networkStatus === 'connected' && (
+          <>
+            {lendingSuccess ? (
+              <div className="flex flex-col items-center py-4 space-y-4">
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-center">Lending Successful!</h3>
+                <p className="text-center text-muted-foreground">
+                  Your contribution of {lastLendAmount} {lastLendCurrency} has been added to the lending pool.
+                </p>
+                <p className="text-sm text-center text-muted-foreground">
+                  You will start earning interest on your contribution immediately.
+                </p>
                 <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-auto py-0 px-1 text-xs"
-                  onClick={() => setAmount(recommendedAmount)}
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => setLendingSuccess(false)}
                 >
-                  Recommended: {recommendedAmount}
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-auto py-0 px-1 text-xs"
-                  onClick={() => setAmount(availableBalanceNum.toString())}
-                >
-                  Max
+                  Make another contribution
                 </Button>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="currency">Currency</Label>
+                  <Select
+                    defaultValue="cUSD"
+                    onValueChange={(value) => setCurrency(value)}
+                    value={currency}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cUSD">cUSD (Celo Dollar)</SelectItem>
+                      <SelectItem value="cEUR">cEUR (Celo Euro)</SelectItem>
+                      <SelectItem value="cREAL">cREAL (Celo Real)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="amount">Amount</Label>
+                    <span className="text-xs text-muted-foreground">
+                      Available: {parseFloat(availableBalance).toFixed(2)} {currency}
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <CircleDollarSign className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="amount"
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-auto py-0 px-1 text-xs"
+                      onClick={() => setAmount(recommendedAmount)}
+                    >
+                      Recommended: {recommendedAmount}
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-auto py-0 px-1 text-xs"
+                      onClick={() => setAmount(availableBalanceNum.toString())}
+                    >
+                      Max
+                    </Button>
+                  </div>
+                </div>
 
-            <div className="mt-4 rounded-lg border p-3 bg-muted/30">
-              <h4 className="text-sm font-medium mb-2">Benefits of Lending:</h4>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• Earn interest on your funds while helping others</li>
-                <li>• Your contribution will be used to fund loans for other users</li>
-                <li>• You can withdraw your contribution at any time</li>
-              </ul>
-            </div>
-          </div>
+                <div className="mt-4 rounded-lg border p-3 bg-muted/30">
+                  <h4 className="text-sm font-medium mb-2">Benefits of Lending:</h4>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    <li>• Earn interest on your funds while helping others</li>
+                    <li>• Your contribution will be used to fund loans for other users</li>
+                    <li>• You can withdraw your contribution at any time</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
       {!lendingSuccess && (

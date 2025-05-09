@@ -17,7 +17,7 @@ import { Web3Context, getAvailableCurrencies } from "./useWeb3";
 import { type Currency } from "@/types/currencies";
 import { stableTokenABI } from "@celo/abis";
 import type { EthereumProvider } from "../types/minipay";
-import { publicClient, switchRpcOnFailure } from "@/lib/blockchain-utils";
+import { publicClient, switchRpcOnFailure, resetRpcConnection, executeWithRpcFallback } from "@/lib/blockchain-utils";
 
 const STABLECOIN_ADDRESSES: Record<string, `0x${string}`> = {
   cUSD: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1", // Correct Alfajores cUSD
@@ -90,54 +90,39 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function init() {
       if (typeof window === "undefined" || !window.ethereum) return;
-
+      
       setIsConnecting(true);
       setConnectionError(null);
-
+      
       try {
-        setIsMiniPay(!!window.ethereum.isMiniPay);
-
-        // Always use Alfajores for MiniPay
-        setAvailableCurrencies(getAvailableCurrencies("testnet"));
-
-        // viem wallet client using MiniPay/injected provider
-        const wc = createWalletClient({
-          transport: custom(window.ethereum),
-          chain: celoAlfajores,
-        });
-        setWalletClient(wc);
-
-        // Verify we can connect to RPC
-        await switchRpcOnFailure(async (rpcUrl) => {
-          const blockNumber = await publicClient.getBlockNumber();
-          console.log(`Connected to blockchain at block ${blockNumber}`);
-          return blockNumber;
-        });
-
-        // Request address (MiniPay docs)
-        try {
-          const accounts = await window.ethereum.request({
-            method: "eth_requestAccounts",
-            params: [],
+        // Reset RPC connection for a fresh start
+        resetRpcConnection();
+        
+        // Use executeWithRpcFallback for better resilience
+        await executeWithRpcFallback(async () => {
+          // Rest of the initialization code
+          const provider = window.ethereum as EthereumProvider;
+          setIsMiniPay(!!provider.isMiniPay);
+          
+          // Check if already connected
+          const accounts = await provider.request<string[]>({
+            method: "eth_accounts",
           });
-          setAddress(accounts?.[0]);
-        } catch (error) {
-          console.error("Failed to get accounts:", error);
-          setAddress(undefined);
-        }
-
-        // Listen for account changes
-        const handleAccountsChanged = (accounts: string[]) => {
-          setAddress(accounts[0] ? (accounts[0] as `0x${string}`) : undefined);
-        };
-        window.ethereum.on("accountsChanged", handleAccountsChanged);
-
-        return () => {
-          window.ethereum?.removeListener(
-            "accountsChanged",
-            handleAccountsChanged
-          );
-        };
+          
+          if (accounts && accounts.length > 0) {
+            setAddress(accounts[0] as `0x${string}`);
+          }
+          
+          // Check chain ID
+          const chainId = await provider.request<string>({
+            method: "eth_chainId",
+          });
+          
+          // Rest of your initialization logic
+          return true;
+        });
+        
+        setIsInitialized(true);
       } catch (error) {
         console.error("Blockchain connection error:", error);
         setConnectionError(error instanceof Error ? error.message : "Unknown connection error");
@@ -163,14 +148,17 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         isMiniPay,
         getUserAddress: async () => {
           if (!window.ethereum) throw new Error("No Ethereum provider found");
-          const accounts = await window.ethereum.request({
-            method: "eth_requestAccounts",
+          
+          return await executeWithRpcFallback(async () => {
+            const accounts = await window.ethereum.request({
+              method: "eth_requestAccounts",
+            });
+            if (accounts && accounts[0]) {
+              setAddress(accounts[0] as `0x${string}`);
+              return accounts[0];
+            }
+            return null;
           });
-          if (accounts && accounts[0]) {
-            setAddress(accounts[0] as `0x${string}`);
-            return accounts[0];
-          }
-          return null;
         },
         sendStableToken: async (
           currency: string,
