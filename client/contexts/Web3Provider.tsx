@@ -37,6 +37,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [isMiniPay, setIsMiniPay] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [availableCurrencies, setAvailableCurrencies] = useState<Currency[]>(
     getAvailableCurrencies("testnet")
   );
@@ -111,6 +112,13 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           
           if (accounts && accounts.length > 0) {
             setAddress(accounts[0] as `0x${string}`);
+            
+            // Initialize the wallet client
+            const client = createWalletClient({
+              chain: celoAlfajores,
+              transport: custom(provider)
+            });
+            setWalletClient(client);
           }
           
           // Check chain ID
@@ -144,6 +152,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         networkType: "testnet",
         isConnecting,
         connectionError, 
+        isInitialized,
         switchNetwork: async () => true, // Only Alfajores supported for MiniPay
         isMiniPay,
         getUserAddress: async () => {
@@ -154,7 +163,16 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
               method: "eth_requestAccounts",
             });
             if (accounts && accounts[0]) {
-              setAddress(accounts[0] as `0x${string}`);
+              const userAddress = accounts[0] as `0x${string}`;
+              setAddress(userAddress);
+              
+              // Initialize the wallet client
+              const client = createWalletClient({
+                chain: celoAlfajores,
+                transport: custom(window.ethereum)
+              });
+              setWalletClient(client);
+              
               return accounts[0];
             }
             return null;

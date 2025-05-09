@@ -58,6 +58,7 @@ export type Web3ContextType = {
   isMiniPay: boolean;
   isConnecting?: boolean;
   connectionError?: string | null;
+  isInitialized: boolean;
   getUserAddress: () => Promise<string | null>;
   sendStableToken: (
     currency: string,
@@ -367,6 +368,7 @@ export const useWeb3Provider = () => {
     },
     availableCurrencies,
     getStableTokenAddress,
+    isInitialized,
   };
 };
 

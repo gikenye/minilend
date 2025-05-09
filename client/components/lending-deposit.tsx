@@ -28,7 +28,7 @@ import { celoAlfajores } from "viem/chains";
 import { stableTokenABI } from "@celo/abis";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLending } from "@/contexts/LendingContext";
-import { executeWithRpcFallback, resetRpcConnection } from "@/lib/blockchain-utils";
+import { executeWithRpcFallback, resetRpcConnection, publicClient } from "@/lib/blockchain-utils";
 import { NetworkStatus } from "@/components/ui/network-status";
 
 // Token addresses on Alfajores
@@ -173,7 +173,7 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
       });
 
       // Create publicClient to wait for transaction receipt
-      const publicClient = createPublicClient({
+      const localPublicClient = createPublicClient({
         chain: celoAlfajores,
         transport: custom(window.ethereum as any),
       });
@@ -182,9 +182,9 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
       try {
         // Use executeWithRpcFallback to handle RPC errors during waitForTransactionReceipt
         await executeWithRpcFallback(async () => {
-          const receipt = await publicClient.waitForTransactionReceipt({ hash });
+          const receipt = await localPublicClient.waitForTransactionReceipt({ hash });
           
-          if (receipt.status === "success") {
+          if (receipt.status === 1) { // 1 means success, 0 means failure
             toast({
               title: "Lending Complete",
               description: `Your contribution of ${amount} ${currency} has been added to the lending pool!`,
