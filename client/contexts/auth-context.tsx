@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/api-client";
 import type { EthereumProvider } from "../types/minipay";
 
@@ -30,6 +30,7 @@ interface AuthContextType {
   logout: () => void;
   updateBalance: (balance: string) => void;
   isMiniPay: boolean;
+  loginInProgress: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,15 +40,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMiniPay, setIsMiniPay] = useState(false);
+  const [loginInProgress, setLoginInProgress] = useState(false);
+  const initialCheckComplete = useRef(false);
 
   // Utility function to convert string to hex
   const stringToHex = (str: string): string => {
     return `0x${Buffer.from(str, "utf8").toString("hex")}`;
   };
 
+  // Utility function to encode a message in the format MiniPay expects
+  const prepareMessageForSigning = (msg: string): string => {
+    // Check if the message already starts with "0x"
+    if (msg.startsWith("0x")) {
+      return msg;
+    }
+
+    // First try standard stringToHex
+    try {
+      return stringToHex(msg);
+    } catch (error) {
+      console.error("Error converting to hex:", error);
+    }
+
+    // Fallback encoding method if standard doesn't work
+    try {
+      // Use a more direct method encoding the UTF-8 message
+      return "0x" + Array.from(new TextEncoder().encode(msg))
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('');
+    } catch (error) {
+      console.error("Error with fallback encoding:", error);
+      // Last resort, return original string
+      return msg;
+    }
+  };
+
   // Check for MiniPay wallet on mount
   useEffect(() => {
     const checkMiniPayWallet = async () => {
+      // If we've already completed the initial check, don't run again
+      if (initialCheckComplete.current) {
+        return;
+      }
+      
       try {
         if (typeof window === "undefined") {
           setIsMiniPay(false);
@@ -62,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (existingToken) {
           try {
             await initializeWithToken(existingToken);
+            initialCheckComplete.current = true;
             return; // If we successfully initialized with token, don't proceed with login
           } catch (err) {
             console.error("Failed to initialize with stored token:", err);
@@ -76,7 +112,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           try {
-            await login("minipay");
+            // Skip auto-login if a login is already in progress
+            if (!loginInProgress) {
+              await login("minipay");
+            }
           } catch (loginError: any) {
             console.error("MiniPay login error:", loginError);
             setError(loginError.message || "Failed to login with MiniPay");
@@ -87,11 +126,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setError(err.message || "Failed to initialize wallet");
       } finally {
         setLoading(false);
+        initialCheckComplete.current = true;
       }
     };
 
     checkMiniPayWallet();
-  }, []);
+  }, [loginInProgress]);
 
   const initializeWithToken = async (token: string) => {
     try {
@@ -116,7 +156,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (accountType: "minipay" | "external" = "minipay") => {
+    // If already logged in or login is in progress, don't start a new login
+    if (user || loginInProgress) {
+      return;
+    }
+
     try {
+      setLoginInProgress(true);
       setLoading(true);
       setError(null);
 
@@ -167,16 +213,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Invalid challenge response from server");
       }
 
-      // Convert the message to hex format before signing
-      const messageToSign = stringToHex(message);
+      console.log("Message from server:", message);
 
-      // Request signature with the hex-encoded message
-      const signature = await window.ethereum.request({
-        method: "personal_sign",
-        params: [messageToSign, address],
-      });
+      // MiniPay requires a UTF-8 encoded message, not a hex string
+      let signature;
+      let signSuccess = false;
 
-      // Verify signature and get token using the original message
+      // First try with the raw message
+      try {
+        console.log("Attempting to sign with raw message");
+        signature = await window.ethereum.request({
+          method: "personal_sign",
+          params: [message, address],
+        });
+        signSuccess = true;
+        console.log("Raw message signing successful");
+      } catch (error: any) {
+        console.error("Raw message signing failed:", error?.message || error);
+      }
+
+      // If first attempt failed, try with hex-encoded message
+      if (!signSuccess) {
+        try {
+          console.log("Attempting to sign with hex-encoded message");
+          const messageAsHex = prepareMessageForSigning(message);
+          console.log("Message as hex:", messageAsHex);
+          signature = await window.ethereum.request({
+            method: "personal_sign",
+            params: [messageAsHex, address],
+          });
+          signSuccess = true;
+          console.log("Hex message signing successful");
+        } catch (error: any) {
+          console.error("Hex message signing failed:", error?.message || error);
+          throw new Error("Failed to sign message with wallet: " + (error?.message || "Unknown error"));
+        }
+      }
+
+      // Verify signature and get token
       const { token } = await apiClient.verifyAuth({
         miniPayAddress: address,
         signature,
@@ -195,6 +269,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw err;
     } finally {
       setLoading(false);
+      setLoginInProgress(false);
     }
   };
 
@@ -223,6 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         updateBalance,
         isMiniPay,
+        loginInProgress,
       }}
     >
       {children}

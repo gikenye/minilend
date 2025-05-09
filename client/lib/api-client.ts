@@ -114,6 +114,7 @@ class ApiClient {
       const response = await api.get("/auth/challenge", {
         params: { address: miniPayAddress },
       });
+      console.log("Auth challenge response:", response.data);
       return response.data; // Returns { message: string, nonce: string }
     });
   }
@@ -124,6 +125,16 @@ class ApiClient {
     message: string;
   }) {
     return this.withErrorHandler("auth/verify", async () => {
+      // Log detailed information about the message format
+      console.log("Verify auth with params:", {
+        address: params.miniPayAddress,
+        messageType: typeof params.message,
+        messageLength: params.message.length,
+        messageFormat: params.message.startsWith("0x") ? "hex" : "raw",
+        messageStart: params.message.substring(0, Math.min(30, params.message.length)) + (params.message.length > 30 ? "..." : ""),
+        signatureStart: params.signature.substring(0, 20) + "..."
+      });
+      
       // Server expects: POST /auth/verify with { miniPayAddress, signature, message }
       const response = await api.post("/auth/verify", params);
       if (response.data.token) {

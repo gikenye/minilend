@@ -9,7 +9,7 @@ interface WalletConnectProps {
 }
 
 export function WalletConnect({ variant = "default" }: WalletConnectProps) {
-  const { user, login, isMiniPay } = useAuth();
+  const { user, login, isMiniPay, loginInProgress } = useAuth();
   const { toast } = useToast();
   const [hideConnectBtn, setHideConnectBtn] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -18,14 +18,16 @@ export function WalletConnect({ variant = "default" }: WalletConnectProps) {
     // Check if we're in MiniPay environment
     if (window?.ethereum?.isMiniPay) {
       setHideConnectBtn(true);
-      // Auto connect for MiniPay users
-      login("minipay").catch((error) => {
-        toast({
-          title: "MiniPay Connection Error",
-          description: error.message || "Failed to connect MiniPay wallet",
-          variant: "destructive",
+      // Only attempt auto-connect if not already in progress and user not already logged in
+      if (!loginInProgress && !user) {
+        login("minipay").catch((error) => {
+          toast({
+            title: "MiniPay Connection Error",
+            description: error.message || "Failed to connect MiniPay wallet",
+            variant: "destructive",
+          });
         });
-      });
+      }
     }
 
     // Check if on mobile
@@ -33,9 +35,12 @@ export function WalletConnect({ variant = "default" }: WalletConnectProps) {
     setIsMobile(
       /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
     );
-  }, []);
+  }, [loginInProgress, user]);
 
   const handleConnect = async () => {
+    // Don't proceed if login is already in progress
+    if (loginInProgress) return;
+    
     try {
       // If on mobile and MetaMask not detected, provide additional guidance
       if (isMobile && !window.ethereum) {
@@ -58,8 +63,8 @@ export function WalletConnect({ variant = "default" }: WalletConnectProps) {
     }
   };
 
-  // Don't show button if in MiniPay or user is already connected
-  if (hideConnectBtn || isMiniPay || user) {
+  // Don't show button if in MiniPay or user is already connected or login is in progress
+  if (hideConnectBtn || isMiniPay || user || loginInProgress) {
     return null;
   }
 
