@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import { MiniPayDeposit } from "@/components/minipay-deposit";
+import { LendingDeposit } from "@/components/lending-deposit";
 
 interface LoanDashboardProps {
   availableCredit: number;
@@ -180,7 +181,7 @@ export function LoanDashboard({
     }
   };
 
-  const handleLend = async () => {
+  const handleLend = () => {
     if (!balance || Number(balance) === 0) {
       toast({
         title: "Cannot Lend",
@@ -190,46 +191,8 @@ export function LoanDashboard({
       return;
     }
 
-    // Calculate lend amount (50% of balance)
-    const lendAmount = Number(balance) * 0.5;
-    
-    // Additional validation to ensure amount is not too small
-    if (lendAmount <= 0.001) {
-      toast({
-        title: "Amount Too Small",
-        description: "The lending amount is too small. Please deposit more funds.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLending(true);
-    try {
-      const hash = await deposit(DEFAULT_CURRENCY, lendAmount.toString());
-
-      toast({
-        title: "Lending in Progress",
-        description: "Your lending transaction is processing. Hash: " + hash,
-      });
-
-      // Wait for transaction confirmation
-      const receipt = await publicClient?.waitForTransactionReceipt({ hash });
-      if (receipt?.status === "success") {
-        toast({
-          title: "Success!",
-          description: "Your money has been added to the lending pool",
-        });
-        router.push("/earnings"); // Redirect to earnings page
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to lend money. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLending(false);
-    }
+    // Show the lending dialog
+    setShowLendDialog(true);
   };
 
   const handleAddMoney = () => {
@@ -275,10 +238,13 @@ export function LoanDashboard({
           <Button
             className="w-full mt-4 bg-green-600 hover:bg-green-700"
             onClick={handleLend}
-            disabled={isLending || Number(balance) === 0}
+            disabled={Number(balance) === 0}
           >
             {isLending ? (
-              "Processing..."
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
             ) : (
               <>
                 <TrendingUp className="mr-2 h-4 w-4" />
@@ -304,6 +270,27 @@ export function LoanDashboard({
               fetchBalances();
               setShowDepositDialog(false);
             }} 
+          />
+          
+        </DialogContent>
+      </Dialog>
+
+      {/* Lending Dialog */}
+      <Dialog open={showLendDialog} onOpenChange={setShowLendDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Lend Money to the Community</DialogTitle>
+            <DialogDescription>
+              Contribute to the lending pool and earn interest on your funds
+            </DialogDescription>
+          </DialogHeader>
+          
+          <LendingDeposit 
+            onLendingComplete={() => {
+              fetchBalances();
+              setShowLendDialog(false);
+            }}
+            availableBalance={balance}
           />
           
         </DialogContent>
