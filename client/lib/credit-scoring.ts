@@ -107,23 +107,59 @@ export async function calculateCreditScore(
   );
 
   // 3. Calculate savings pattern score (25%)
-  const currentBalance = (await publicClient.readContract({
-    address: contractAddress,
-    abi: [
+  let savingsScore = 0;
+  try {
+    // The contract doesn't have userDeposits function; use userLoans or another approach
+    // First, try to use userLoans which exists in the contract
+    const userLoansABI = [
       {
-        constant: true,
-        inputs: [{ name: "user", type: "address" }],
-        name: "userDeposits",
-        outputs: [{ name: "", type: "uint256" }],
-      },
-    ],
-    functionName: "userDeposits",
-    args: [userAddress],
-  })) as bigint;
+        inputs: [
+          { name: "", type: "address" },
+          { name: "", type: "address" }
+        ],
+        name: "userLoans",
+        outputs: [
+          { name: "active", type: "bool" },
+          { name: "principal", type: "uint256" },
+          { name: "interestAccrued", type: "uint256" },
+          { name: "lastUpdate", type: "uint256" }
+        ],
+        stateMutability: "view",
+        type: "function"
+      }
+    ];
 
-  // Convert balance to a normalized score (0-1)
-  const balanceInEther = Number(currentBalance) / Math.pow(10, DECIMALS);
-  const savingsScore = Math.min(balanceInEther / 1000, 1); // Normalize based on 1000 token target
+    // Use getLogs to estimate user's activity and deposits
+    const depositEvents = await publicClient.getLogs({
+      event: {
+        type: "event",
+        name: "Deposit",
+        inputs: [
+          { indexed: true, type: "address", name: "user" },
+          { indexed: true, type: "address", name: "token" },
+          { indexed: false, type: "uint256", name: "amount" },
+        ],
+      },
+      args: { user: userAddress },
+      fromBlock: BigInt(0),
+      toBlock: "latest",
+    });
+
+    // Calculate total deposits from events
+    let totalDeposits = BigInt(0);
+    for (const event of depositEvents) {
+      if (event.args && event.args.amount) {
+        totalDeposits += event.args.amount as bigint;
+      }
+    }
+
+    // Convert balance to a normalized score (0-1)
+    const balanceInEther = Number(totalDeposits) / Math.pow(10, DECIMALS);
+    savingsScore = Math.min(balanceInEther / 1000, 1); // Normalize based on 1000 token target
+  } catch (error) {
+    console.error("Error calculating savings score:", error);
+    // Continue with zero savings score if this fails
+  }
 
   // 4. Calculate account age score (20%)
   let firstTransaction = allTransactions[0];

@@ -167,4 +167,124 @@ export class BlockchainService {
     await this.initialize();
     return this.web3.utils.fromWei(amount);
   }
+
+  async depositToPool(
+    tokenAddress: string,
+    amount: number,
+    depositorAddress: string
+  ): Promise<string> {
+    await this.initialize();
+    const weiAmount = this.web3.utils.toWei(amount.toString());
+    
+    // Call the contract's deposit method directly with the token address and amount
+    const tx = await this.contract.methods
+      .deposit(tokenAddress, weiAmount)
+      .send({ 
+        from: depositorAddress, 
+        // Include fee currency option for Celo fee abstraction
+        feeCurrency: tokenAddress
+      });
+      
+    return tx.transactionHash;
+  }
+
+  async borrowFromPool(
+    tokenAddress: string,
+    amount: number,
+    borrowerAddress: string
+  ): Promise<string> {
+    await this.initialize();
+    const weiAmount = this.web3.utils.toWei(amount.toString());
+    
+    // Call the contract's borrow method directly with the token address and amount
+    const tx = await this.contract.methods
+      .borrow(tokenAddress, weiAmount)
+      .send({ 
+        from: borrowerAddress, 
+        // Include fee currency option for Celo fee abstraction
+        feeCurrency: tokenAddress
+      });
+      
+    return tx.transactionHash;
+  }
+
+  async repayLoan(
+    tokenAddress: string,
+    amount: number,
+    borrowerAddress: string
+  ): Promise<string> {
+    await this.initialize();
+    const weiAmount = this.web3.utils.toWei(amount.toString());
+    
+    // Call the contract's repay method directly with the token address and amount
+    const tx = await this.contract.methods
+      .repay(tokenAddress, weiAmount)
+      .send({ 
+        from: borrowerAddress, 
+        // Include fee currency option for Celo fee abstraction
+        feeCurrency: tokenAddress
+      });
+      
+    return tx.transactionHash;
+  }
+
+  async getYieldsForToken(
+    tokenAddress: string,
+    userAddress: string
+  ): Promise<{
+    grossYield: string;
+    netYield: string;
+    usedForLoanRepayment: string;
+  }> {
+    await this.initialize();
+    
+    // Call the contract's getYields method with token and user addresses
+    const yields = await this.contract.methods
+      .getYields(tokenAddress, userAddress)
+      .call();
+
+    return {
+      grossYield: this.web3.utils.fromWei(yields.grossYield),
+      netYield: this.web3.utils.fromWei(yields.netYield),
+      usedForLoanRepayment: this.web3.utils.fromWei(yields.usedForLoanRepayment),
+    };
+  }
+
+  async getWithdrawableForToken(
+    tokenAddress: string,
+    userAddress: string
+  ): Promise<{
+    withdrawable: string;
+    usedForLoan: string;
+  }> {
+    await this.initialize();
+    
+    // Call the contract's getWithdrawable method with token and user addresses
+    const amounts = await this.contract.methods
+      .getWithdrawable(tokenAddress, userAddress)
+      .call();
+
+    return {
+      withdrawable: this.web3.utils.fromWei(amounts.withdrawable),
+      usedForLoan: this.web3.utils.fromWei(amounts.usedForLoan),
+    };
+  }
+
+  async withdrawFromPool(
+    tokenAddress: string,
+    withdrawerAddress: string
+  ): Promise<string> {
+    await this.initialize();
+    
+    // Call the contract's withdraw method with the token address
+    const tx = await this.contract.methods
+      .withdraw(tokenAddress)
+      .send({ 
+        from: withdrawerAddress, 
+        // Include fee currency option for Celo fee abstraction
+        feeCurrency: tokenAddress
+      });
+      
+    return tx.transactionHash;
+  }
 }

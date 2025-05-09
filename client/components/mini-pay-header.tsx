@@ -6,6 +6,7 @@ import { History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocaleToggle } from "@/components/locale-toggle";
+import { WalletConnect } from "@/components/wallet-connect";
 
 export function MiniPayHeader() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export function MiniPayHeader() {
         </div>
 
         <div className="flex items-center gap-2">
+          <WalletConnect />
           <Button
             variant="ghost"
             size="sm"

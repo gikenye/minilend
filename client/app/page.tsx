@@ -3,7 +3,6 @@
 import { MiniPayHeader } from "@/components/mini-pay-header";
 import { Dashboard } from "@/components/dashboard";
 import ProtectedRoute from "@/components/protected-route";
-import { WalletConnect } from "@/components/wallet-connect";
 
 export default function HomePage() {
   return (
@@ -12,7 +11,6 @@ export default function HomePage() {
         <MiniPayHeader />
         <div className="container mx-auto px-4 py-6">
           <Dashboard />
-          <WalletConnect />
         </div>
       </main>
     </ProtectedRoute>

@@ -120,12 +120,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
 
+      // Check if mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        window.navigator.userAgent
+      );
+
       if (!window.ethereum) {
-        throw new Error(
-          accountType === "minipay"
-            ? "Please install MiniPay wallet to continue"
-            : "Please install MetaMask to continue"
-        );
+        if (isMobile) {
+          throw new Error(
+            accountType === "minipay"
+              ? "Please open this app in MiniPay wallet"
+              : "Please open this app in MetaMask or another wallet app"
+          );
+        } else {
+          throw new Error(
+            accountType === "minipay"
+              ? "Please install MiniPay wallet to continue"
+              : "Please install MetaMask to continue"
+          );
+        }
       }
 
       // Check wallet type compatibility

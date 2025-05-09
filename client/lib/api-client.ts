@@ -29,12 +29,15 @@ export async function getMiniPayAddress(): Promise<string | null> {
 
 // Create API instance
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_PREFIX = "/api";
+const LENDING_POOL_BASE_URL = "/api/lending-pool";
 
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 30000, // 30 seconds
 });
 
 // Add request interceptor to include auth token
@@ -73,6 +76,14 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Stablecoin addresses from client-apis.json
+export const STABLECOIN_ADDRESSES = {
+  cUSD: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
+  cEUR: "0x10c892A6EC43a53E45D0B916B4b7D383B1b78C0F",
+  cREAL: "0xE4D517785D091D3c54818832dB6094bcc2744545",
+  USDC: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B"
+};
 
 class ApiClient {
   private async withErrorHandler<T>(
@@ -144,7 +155,75 @@ class ApiClient {
     });
   }
 
-  // Lending Pool endpoints
+  // Lending Pool endpoints - UPDATED to match client-apis.json
+  async deposit(params: { token: string; amount: number }) {
+    return this.withErrorHandler("lending-pool/deposit", async () => {
+      const response = await api.post(`${LENDING_POOL_BASE_URL}/deposit`, params);
+      return response.data;
+    });
+  }
+
+  async withdraw(params: { token: string }) {
+    return this.withErrorHandler("lending-pool/withdraw", async () => {
+      const response = await api.post(`${LENDING_POOL_BASE_URL}/withdraw`, params);
+      return response.data;
+    });
+  }
+
+  async borrow(params: { token: string; amount: number }) {
+    return this.withErrorHandler("lending-pool/borrow", async () => {
+      const response = await api.post(`${LENDING_POOL_BASE_URL}/borrow`, params);
+      return response.data;
+    });
+  }
+
+  async repay(params: { token: string; amount: number }) {
+    return this.withErrorHandler("lending-pool/repay", async () => {
+      const response = await api.post(`${LENDING_POOL_BASE_URL}/repay`, params);
+      return response.data;
+    });
+  }
+
+  async getYields(token: string) {
+    return this.withErrorHandler("lending-pool/yields", async () => {
+      const response = await api.get(`${LENDING_POOL_BASE_URL}/yields`, {
+        params: { token }
+      });
+      return response.data;
+    });
+  }
+
+  async getWithdrawable(token: string) {
+    return this.withErrorHandler("lending-pool/withdrawable", async () => {
+      const response = await api.get(`${LENDING_POOL_BASE_URL}/withdrawable`, {
+        params: { token }
+      });
+      return response.data;
+    });
+  }
+
+  async getAllLendingPools() {
+    return this.withErrorHandler("lending-pool/", async () => {
+      const response = await api.get(`${LENDING_POOL_BASE_URL}/`);
+      return response.data;
+    });
+  }
+
+  async getLendingPoolStatus() {
+    return this.withErrorHandler("lending-pool/status", async () => {
+      const response = await api.get(`${LENDING_POOL_BASE_URL}/status`);
+      return response.data;
+    });
+  }
+
+  async getLendingPoolById(poolId: string) {
+    return this.withErrorHandler(`lending-pool/${poolId}`, async () => {
+      const response = await api.get(`${LENDING_POOL_BASE_URL}/${poolId}`);
+      return response.data;
+    });
+  }
+
+  // Legacy methods for backward compatibility - can be deprecated in future versions
   async createLendingPool(poolData: {
     name: string;
     totalFunds: number;
@@ -158,6 +237,7 @@ class ApiClient {
     region: string;
     description: string;
   }) {
+    console.warn("Legacy method used: createLendingPool. Consider switching to new API format.");
     return this.withErrorHandler("lending-pools", async () => {
       const response = await api.post("/api/lending-pools", poolData);
       return response.data;
@@ -165,6 +245,7 @@ class ApiClient {
   }
 
   async getPoolStatus() {
+    console.warn("Legacy method used: getPoolStatus. Consider using getLendingPoolStatus instead.");
     return this.withErrorHandler("lending-pools/status", async () => {
       const response = await api.get("/api/lending-pools/status");
       return response.data;
@@ -172,6 +253,7 @@ class ApiClient {
   }
 
   async fundPool(poolId: string, amount: number) {
+    console.warn("Legacy method used: fundPool. Consider using deposit instead.");
     return this.withErrorHandler(`lending-pools/${poolId}/fund`, async () => {
       const response = await api.post(`/api/lending-pools/${poolId}/fund`, {
         amount,
@@ -181,6 +263,7 @@ class ApiClient {
   }
 
   async withdrawFromPool(poolId: string, amount: number) {
+    console.warn("Legacy method used: withdrawFromPool. Consider using withdraw instead.");
     return this.withErrorHandler(
       `lending-pools/${poolId}/withdraw`,
       async () => {

@@ -48,9 +48,17 @@ export async function GET(request: NextRequest) {
 
   // Handle auth endpoints differently - they don't have /api prefix
   const isAuthEndpoint = pathname.startsWith("/api/auth/");
-  const apiPath = isAuthEndpoint
-    ? pathname.replace("/api/auth/", "/auth/")
-    : pathname.replace("/api", "");
+  
+  // Handle lending-pool endpoints according to client-apis.json format
+  let apiPath;
+  if (isAuthEndpoint) {
+    apiPath = pathname.replace("/api/auth/", "/auth/");
+  } else if (pathname.startsWith("/api/lending-pool")) {
+    // This handles the lending-pool base URL format from client-apis.json
+    apiPath = pathname.replace("/api", "");
+  } else {
+    apiPath = pathname.replace("/api", "");
+  }
 
   try {
     // Construct full URL with query parameters
@@ -95,9 +103,17 @@ export async function POST(request: NextRequest) {
 
   // Handle auth endpoints differently - they don't have /api prefix
   const isAuthEndpoint = pathname.startsWith("/api/auth/");
-  const apiPath = isAuthEndpoint
-    ? pathname.replace("/api/auth/", "/auth/")
-    : pathname.replace("/api", "");
+  
+  // Handle lending-pool endpoints according to client-apis.json format
+  let apiPath;
+  if (isAuthEndpoint) {
+    apiPath = pathname.replace("/api/auth/", "/auth/");
+  } else if (pathname.startsWith("/api/lending-pool")) {
+    // This handles the lending-pool base URL format from client-apis.json
+    apiPath = pathname.replace("/api", "");
+  } else {
+    apiPath = pathname.replace("/api", "");
+  }
 
   try {
     const body = await request.json();

@@ -21,6 +21,12 @@ export class LendingPoolController {
     this.withdrawFromLendingPool = this.withdrawFromLendingPool.bind(this);
     this.getPoolStatus = this.getPoolStatus.bind(this);
     this.contributeToPool = this.contributeToPool.bind(this);
+    this.depositToPool = this.depositToPool.bind(this);
+    this.borrowFromPool = this.borrowFromPool.bind(this);
+    this.repayLoan = this.repayLoan.bind(this);
+    this.getYields = this.getYields.bind(this);
+    this.getWithdrawable = this.getWithdrawable.bind(this);
+    this.withdrawFromPool = this.withdrawFromPool.bind(this);
   }
 
   async createLendingPool(
@@ -317,6 +323,284 @@ export class LendingPoolController {
       console.error("Error contributing to pool:", error);
       res.status(500).json({
         error: error.message || "Failed to contribute to pool",
+      });
+    }
+  }
+
+  async depositToPool(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { token, amount } = req.body;
+      
+      if (!token || !amount || amount <= 0) {
+        res.status(400).json({ 
+          error: "Invalid parameters",
+          details: "Token address and positive amount are required" 
+        });
+        return;
+      }
+      
+      // Validate token is approved stablecoin
+      const isApproved = await this.lendingPoolService.isStablecoinApproved(token);
+      if (!isApproved) {
+        res.status(400).json({ 
+          error: "Invalid token",
+          details: "Token is not an approved stablecoin" 
+        });
+        return;
+      }
+
+      const result = await this.lendingPoolService.depositToPool(
+        token,
+        amount,
+        req.user!.address
+      );
+      
+      res.status(200).json({
+        message: "Deposit successful",
+        transaction: result.transactionHash,
+        details: {
+          token,
+          amount,
+          depositor: req.user!.address
+        }
+      });
+    } catch (error: any) {
+      console.error("Error depositing to pool:", error);
+      res.status(500).json({
+        error: "Failed to deposit to pool",
+        details: error.message
+      });
+    }
+  }
+
+  async borrowFromPool(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { token, amount } = req.body;
+      
+      if (!token || !amount || amount <= 0) {
+        res.status(400).json({ 
+          error: "Invalid parameters",
+          details: "Token address and positive amount are required" 
+        });
+        return;
+      }
+      
+      // Validate token is approved stablecoin
+      const isApproved = await this.lendingPoolService.isStablecoinApproved(token);
+      if (!isApproved) {
+        res.status(400).json({ 
+          error: "Invalid token",
+          details: "Token is not an approved stablecoin" 
+        });
+        return;
+      }
+
+      const result = await this.lendingPoolService.borrowFromPool(
+        token,
+        amount,
+        req.user!.address
+      );
+      
+      res.status(200).json({
+        message: "Loan created successfully",
+        transaction: result.transactionHash,
+        details: {
+          token,
+          amount,
+          borrower: req.user!.address
+        }
+      });
+    } catch (error: any) {
+      console.error("Error borrowing from pool:", error);
+      res.status(500).json({
+        error: "Failed to borrow from pool",
+        details: error.message
+      });
+    }
+  }
+
+  async repayLoan(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { token, amount } = req.body;
+      
+      if (!token || !amount || amount <= 0) {
+        res.status(400).json({ 
+          error: "Invalid parameters",
+          details: "Token address and positive amount are required" 
+        });
+        return;
+      }
+      
+      // Validate token is approved stablecoin
+      const isApproved = await this.lendingPoolService.isStablecoinApproved(token);
+      if (!isApproved) {
+        res.status(400).json({ 
+          error: "Invalid token",
+          details: "Token is not an approved stablecoin" 
+        });
+        return;
+      }
+
+      const result = await this.lendingPoolService.repayLoan(
+        token,
+        amount,
+        req.user!.address
+      );
+      
+      res.status(200).json({
+        message: "Loan repayment successful",
+        transaction: result.transactionHash,
+        details: {
+          token,
+          amount,
+          borrower: req.user!.address
+        }
+      });
+    } catch (error: any) {
+      console.error("Error repaying loan:", error);
+      res.status(500).json({
+        error: "Failed to repay loan",
+        details: error.message
+      });
+    }
+  }
+
+  async getYields(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { token } = req.query;
+      
+      if (!token) {
+        res.status(400).json({
+          error: "Missing required parameter",
+          details: "Token address is required"
+        });
+        return;
+      }
+      
+      // Check if token is an approved stablecoin
+      const isApproved = await this.lendingPoolService.isStablecoinApproved(token as string);
+      if (!isApproved) {
+        res.status(400).json({
+          error: "Invalid token",
+          details: "Token is not an approved stablecoin"
+        });
+        return;
+      }
+
+      const yields = await this.lendingPoolService.getYieldsForToken(
+        token as string,
+        req.user!.address
+      );
+      
+      res.status(200).json({
+        yields
+      });
+    } catch (error: any) {
+      console.error("Error getting yields:", error);
+      res.status(500).json({
+        error: "Failed to get yields",
+        details: error.message
+      });
+    }
+  }
+
+  async getWithdrawable(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { token } = req.query;
+      
+      if (!token) {
+        res.status(400).json({
+          error: "Missing required parameter",
+          details: "Token address is required"
+        });
+        return;
+      }
+      
+      // Check if token is an approved stablecoin
+      const isApproved = await this.lendingPoolService.isStablecoinApproved(token as string);
+      if (!isApproved) {
+        res.status(400).json({
+          error: "Invalid token",
+          details: "Token is not an approved stablecoin"
+        });
+        return;
+      }
+
+      const withdrawable = await this.lendingPoolService.getWithdrawableForToken(
+        token as string,
+        req.user!.address
+      );
+      
+      res.status(200).json({
+        withdrawable
+      });
+    } catch (error: any) {
+      console.error("Error getting withdrawable amount:", error);
+      res.status(500).json({
+        error: "Failed to get withdrawable amount",
+        details: error.message
+      });
+    }
+  }
+
+  async withdrawFromPool(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        res.status(400).json({ 
+          error: "Invalid parameters",
+          details: "Token address is required" 
+        });
+        return;
+      }
+      
+      // Validate token is approved stablecoin
+      const isApproved = await this.lendingPoolService.isStablecoinApproved(token);
+      if (!isApproved) {
+        res.status(400).json({ 
+          error: "Invalid token",
+          details: "Token is not an approved stablecoin" 
+        });
+        return;
+      }
+
+      const result = await this.lendingPoolService.withdrawFromPool(
+        token,
+        req.user!.address
+      );
+      
+      res.status(200).json({
+        message: "Withdrawal successful",
+        transaction: result.transactionHash,
+        details: {
+          token,
+          withdrawer: req.user!.address
+        }
+      });
+    } catch (error: any) {
+      console.error("Error withdrawing from pool:", error);
+      res.status(500).json({
+        error: "Failed to withdraw from pool",
+        details: error.message
       });
     }
   }

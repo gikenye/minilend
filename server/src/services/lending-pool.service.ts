@@ -369,4 +369,159 @@ export class LendingPoolService {
 
     return this.blockchainService.getWithdrawableAmount(userAddress);
   }
+
+  async depositToPool(
+    token: string,
+    amount: number,
+    depositorAddress: string
+  ): Promise<{
+    transactionHash: string;
+  }> {
+    try {
+      // Call the deposit method on the smart contract
+      const txHash = await this.blockchainService.depositToPool(
+        token,
+        amount,
+        depositorAddress
+      );
+      
+      return {
+        transactionHash: txHash
+      };
+    } catch (error) {
+      console.error("Error depositing to pool:", error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : "Failed to deposit to pool on blockchain"
+      );
+    }
+  }
+
+  async isStablecoinApproved(tokenAddress: string): Promise<boolean> {
+    return this.blockchainService.isStablecoinApproved(tokenAddress);
+  }
+
+  async borrowFromPool(
+    token: string,
+    amount: number,
+    borrowerAddress: string
+  ): Promise<{
+    transactionHash: string;
+  }> {
+    try {
+      // Call the borrow method on the smart contract
+      const txHash = await this.blockchainService.borrowFromPool(
+        token,
+        amount,
+        borrowerAddress
+      );
+      
+      return {
+        transactionHash: txHash
+      };
+    } catch (error) {
+      console.error("Error borrowing from pool:", error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : "Failed to borrow from pool on blockchain"
+      );
+    }
+  }
+
+  async repayLoan(
+    token: string,
+    amount: number,
+    borrowerAddress: string
+  ): Promise<{
+    transactionHash: string;
+  }> {
+    try {
+      // Call the repay method on the smart contract
+      const txHash = await this.blockchainService.repayLoan(
+        token,
+        amount,
+        borrowerAddress
+      );
+      
+      return {
+        transactionHash: txHash
+      };
+    } catch (error) {
+      console.error("Error repaying loan:", error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : "Failed to repay loan on blockchain"
+      );
+    }
+  }
+
+  async getYieldsForToken(
+    token: string,
+    userAddress: string
+  ): Promise<{
+    grossYield: string;
+    netYield: string;
+    usedForLoanRepayment: string;
+  }> {
+    try {
+      // Call the getYields method on the contract, passing token and user address
+      return this.blockchainService.getYieldsForToken(token, userAddress);
+    } catch (error) {
+      console.error("Error getting yields:", error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : "Failed to get yields from blockchain"
+      );
+    }
+  }
+
+  async getWithdrawableForToken(
+    token: string,
+    userAddress: string
+  ): Promise<{
+    withdrawable: string;
+    usedForLoan: string;
+  }> {
+    try {
+      // Call the getWithdrawable method on the contract, passing token and user address
+      return this.blockchainService.getWithdrawableForToken(token, userAddress);
+    } catch (error) {
+      console.error("Error getting withdrawable amount:", error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : "Failed to get withdrawable amount from blockchain"
+      );
+    }
+  }
+
+  async withdrawFromPool(
+    token: string,
+    withdrawerAddress: string
+  ): Promise<{
+    transactionHash: string;
+  }> {
+    try {
+      // Call the withdraw method on the smart contract
+      const txHash = await this.blockchainService.withdrawFromPool(
+        token,
+        withdrawerAddress
+      );
+      
+      return {
+        transactionHash: txHash
+      };
+    } catch (error) {
+      console.error("Error withdrawing from pool:", error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : "Failed to withdraw from pool on blockchain"
+      );
+    }
+  }
 }

@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Web3Provider } from "@/contexts/Web3Provider";
 import { LendingProvider } from "@/contexts/LendingContext";
 import { LiquidityProvider } from "@/contexts/LiquidityContext";
+import { LayoutWrapper } from "@/components/layout-wrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -36,7 +37,9 @@ export default function RootLayout({
             <Web3Provider>
               <LendingProvider>
                 <LiquidityProvider>
-                  {children}
+                  <LayoutWrapper>
+                    {children}
+                  </LayoutWrapper>
                   <Toaster />
                 </LiquidityProvider>
               </LendingProvider>

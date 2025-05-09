@@ -180,8 +180,21 @@ export function LoanDashboard({
   const handleLend = async () => {
     if (!balance || Number(balance) === 0) {
       toast({
-        title: "Error",
-        description: "You need to have funds in your wallet to lend",
+        title: "Cannot Lend",
+        description: "You must have funds in your wallet to lend. Please deposit funds first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Calculate lend amount (50% of balance)
+    const lendAmount = Number(balance) * 0.5;
+    
+    // Additional validation to ensure amount is not too small
+    if (lendAmount <= 0.001) {
+      toast({
+        title: "Amount Too Small",
+        description: "The lending amount is too small. Please deposit more funds.",
         variant: "destructive",
       });
       return;
@@ -189,8 +202,7 @@ export function LoanDashboard({
 
     setIsLending(true);
     try {
-      const lendAmount = (Number(balance) * 0.5).toString(); // Lend 50% of balance
-      const hash = await deposit(DEFAULT_CURRENCY, lendAmount);
+      const hash = await deposit(DEFAULT_CURRENCY, lendAmount.toString());
 
       toast({
         title: "Lending in Progress",

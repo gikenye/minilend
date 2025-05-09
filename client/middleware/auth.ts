@@ -13,6 +13,7 @@ const protectedRoutes = [
   "/withdraw",
 ];
 
+// This middleware is for Next.js routes
 export function middleware(request: NextRequest) {
   // Get auth token from cookies or headers
   const token =

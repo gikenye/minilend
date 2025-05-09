@@ -87,6 +87,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       functionName: "approve",
       args: [CONTRACT_ADDRESS, amountBigInt],
       account: address,
+      chain: publicClient.chain,
     });
 
     // Wait for approval transaction to be mined
@@ -99,6 +100,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       functionName: "borrow",
       args: [getStableTokenAddress(application.currency), amountBigInt],
       account: address,
+      chain: publicClient.chain,
     });
 
     await fetchLoans();
@@ -106,7 +108,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
   };
 
   const repayLoan = async (amount: string): Promise<Hash> => {
-    if (!walletClient || !address) throw new Error("Wallet not connected");
+    if (!walletClient || !address || !publicClient) throw new Error("Wallet not connected");
 
     const tokenAddress = getStableTokenAddress(DEFAULT_CURRENCY);
     const amountBigInt = BigInt(Math.floor(Number(amount) * 1e18));
@@ -118,6 +120,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       functionName: "approve",
       args: [CONTRACT_ADDRESS, amountBigInt],
       account: address,
+      chain: publicClient.chain,
     });
 
     // Wait for approval transaction to be mined
@@ -130,6 +133,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       functionName: "repay",
       args: [tokenAddress, amountBigInt],
       account: address,
+      chain: publicClient.chain,
     });
 
     await fetchLoans();
@@ -140,16 +144,75 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
     if (!publicClient || !address) return;
 
     try {
-      const loansData = (await publicClient.readContract({
+      // The contract doesn't have getLoansByBorrower function
+      // Use events to get loan history instead
+      const loanEvents = await publicClient.getLogs({
         address: CONTRACT_ADDRESS,
-        abi: minilendABI,
-        functionName: "getLoansByBorrower",
-        args: [address],
-      })) as Loan[];
+        event: {
+          type: "event",
+          name: "LoanCreated",
+          inputs: [
+            { indexed: true, type: "address", name: "user" },
+            { indexed: true, type: "address", name: "token" },
+            { indexed: false, type: "uint256", name: "amount" }
+          ]
+        },
+        args: { user: address },
+        fromBlock: BigInt(0),
+        toBlock: "latest"
+      });
 
-      setLoans(loansData);
+      const repaymentEvents = await publicClient.getLogs({
+        address: CONTRACT_ADDRESS,
+        event: {
+          type: "event",
+          name: "LoanRepaid",
+          inputs: [
+            { indexed: true, type: "address", name: "user" },
+            { indexed: true, type: "address", name: "token" },
+            { indexed: false, type: "uint256", name: "amount" }
+          ]
+        },
+        args: { user: address },
+        fromBlock: BigInt(0),
+        toBlock: "latest"
+      });
+
+      // Process loan events into Loan objects
+      const processedLoans: Loan[] = [];
+      
+      for (let i = 0; i < loanEvents.length; i++) {
+        const loanEvent = loanEvents[i];
+        const loan: Loan = {
+          id: i,
+          borrower: address,
+          amount: loanEvent.args?.amount as bigint || BigInt(0),
+          duration: 30, // Default 30 days loan term
+          startTime: Number(loanEvent.blockNumber || 0),
+          isRepaid: false,
+          currency: (loanEvent.args?.token as string) || ""
+        };
+
+        // Check if this loan is repaid by finding matching repayment events
+        const repayment = repaymentEvents.find(event => 
+          event.args?.token === loan.currency && 
+          event.blockNumber && 
+          loanEvent.blockNumber && 
+          event.blockNumber > loanEvent.blockNumber
+        );
+        
+        if (repayment) {
+          loan.isRepaid = true;
+        }
+        
+        processedLoans.push(loan);
+      }
+
+      setLoans(processedLoans);
     } catch (error) {
       console.error("Error fetching loans:", error);
+      // Set empty array on error
+      setLoans([]);
     }
   };
 
@@ -157,16 +220,28 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
     if (!publicClient || !address) return;
 
     try {
-      const activeLoanData = (await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: minilendABI,
-        functionName: "getActiveLoan",
-        args: [address],
-      })) as Loan;
+      // Use the userLoans function instead of getActiveLoan
+      const userLoanData = await getUserLoan();
+      
+      if (userLoanData && userLoanData.active && userLoanData.principal > BigInt(0)) {
+        // Create a Loan object from userLoanData
+        const activeLoanData: Loan = {
+          id: 0,
+          borrower: address,
+          amount: userLoanData.principal,
+          duration: 30, // Default 30 days term
+          startTime: Number(userLoanData.lastUpdate),
+          isRepaid: false,
+          currency: DEFAULT_CURRENCY
+        };
 
-      setActiveLoan(activeLoanData);
+        setActiveLoan(activeLoanData);
+      } else {
+        setActiveLoan(null);
+      }
     } catch (error) {
       console.error("Error fetching active loan:", error);
+      setActiveLoan(null);
     }
   };
 
@@ -242,7 +317,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
   };
 
   const borrow = async (amount: string): Promise<Hash> => {
-    if (!walletClient || !address) throw new Error("Wallet not connected");
+    if (!walletClient || !address || !publicClient) throw new Error("Wallet not connected");
 
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
@@ -253,6 +328,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
         BigInt(Math.floor(Number(amount) * 1e18)),
       ],
       account: address,
+      chain: publicClient.chain,
     });
 
     await fetchLoans();
@@ -299,17 +375,30 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       throw new Error("Web3 not initialized");
     }
 
-    const score = await calculateCreditScore(
-      address,
-      CONTRACT_ADDRESS,
-      publicClient
-    );
-
-    return score;
+    try {
+      const score = await calculateCreditScore(
+        address,
+        CONTRACT_ADDRESS,
+        publicClient
+      );
+      return score;
+    } catch (error) {
+      console.error("Error calculating credit score:", error);
+      // Return a default score if calculation fails
+      return {
+        score: 500, // Default middle score
+        breakdown: {
+          repaymentHistory: 0.5,
+          transactionFrequency: 0.5,
+          savingsPattern: 0.5,
+          accountAge: 0.5,
+        }
+      };
+    }
   };
 
   const deposit = async (tokenType: string, amount: string): Promise<Hash> => {
-    if (!walletClient || !address) throw new Error("Wallet not connected");
+    if (!walletClient || !address || !publicClient) throw new Error("Wallet not connected");
 
     const tokenAddress = getStableTokenAddress(tokenType);
     const amountBigInt = BigInt(Math.floor(Number(amount) * 1e18));
@@ -321,6 +410,7 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       functionName: "approve",
       args: [CONTRACT_ADDRESS, amountBigInt],
       account: address,
+      chain: publicClient.chain,
     });
 
     // Wait for approval transaction to be mined
@@ -333,9 +423,10 @@ export function LendingProvider({ children }: { children: React.ReactNode }) {
       functionName: "deposit",
       args: [tokenAddress, amountBigInt],
       account: address,
+      chain: publicClient.chain,
     });
 
-    await fetchBalances();
+    await fetchLoans();
     return hash;
   };
 

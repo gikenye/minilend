@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  createPublicClient,
   createWalletClient,
   custom,
   http,
@@ -12,20 +11,19 @@ import {
   type WalletClient,
   type Hash,
   type Account,
-  getContract, // <-- import getContract
 } from "viem";
 import { celoAlfajores } from "viem/chains";
 import { Web3Context, getAvailableCurrencies } from "./useWeb3";
 import { type Currency } from "@/types/currencies";
 import { stableTokenABI } from "@celo/abis";
 import type { EthereumProvider } from "../types/minipay";
+import { publicClient, switchRpcOnFailure } from "@/lib/blockchain-utils";
 
-// Only Alfajores addresses for MiniPay
 const STABLECOIN_ADDRESSES: Record<string, `0x${string}`> = {
-  cUSD: "0x765DE816845861e75A25fCA122bb6898B8B1282a", // Alfajores cUSD
-  USDC: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
-  USDT: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
+  cUSD: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1", // Correct Alfajores cUSD
+  USDC: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B", // (if you use USDC on Alfajores)
 };
+
 
 declare global {
   interface Window {
@@ -36,8 +34,9 @@ declare global {
 export function Web3Provider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<`0x${string}` | undefined>();
   const [walletClient, setWalletClient] = useState<WalletClient>();
-  const [publicClient, setPublicClient] = useState<PublicClient>();
   const [isMiniPay, setIsMiniPay] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [availableCurrencies, setAvailableCurrencies] = useState<Currency[]>(
     getAvailableCurrencies("testnet")
   );
@@ -47,6 +46,36 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     const addr = STABLECOIN_ADDRESSES[currency];
     if (!addr) throw new Error(`Unsupported currency: ${currency}`);
     return addr;
+  };
+
+  // Helper function to get balance with any client
+  const getBalanceWithClient = async (
+    client: PublicClient,
+    currency: string,
+    addressToCheck?: string
+  ): Promise<string> => {
+    const userAddr = addressToCheck || address;
+    if (!userAddr) return "0"; // Return 0 if no address available
+
+    try {
+      // Use the switchRpcOnFailure utility to handle RPC errors
+      return await switchRpcOnFailure(async (rpcUrl) => {
+        const tokenAddress = getStableTokenAddress(currency);
+        // Use readContract directly which is more reliable
+        const balance = await client.readContract({
+          address: tokenAddress,
+          abi: stableTokenABI,
+          functionName: "balanceOf",
+          args: [userAddr as `0x${string}`],
+        });
+        
+        return formatEther(balance);
+      });
+    } catch (error) {
+      console.error("Error reading token balance:", error);
+      // Return zero balance on error rather than crashing
+      return "0";
+    }
   };
 
   // String to hex utility
@@ -62,53 +91,59 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     async function init() {
       if (typeof window === "undefined" || !window.ethereum) return;
 
-      setIsMiniPay(!!window.ethereum.isMiniPay);
+      setIsConnecting(true);
+      setConnectionError(null);
 
-      // Always use Alfajores for MiniPay
-      setAvailableCurrencies(getAvailableCurrencies("testnet"));
-
-      // viem wallet client using MiniPay/injected provider
-      const wc = createWalletClient({
-        transport: custom(window.ethereum),
-        chain: celoAlfajores,
-      });
-      setWalletClient(wc);
-
-      // viem public client for reading
-      const transport = http("https://alfajores-forno.celo-testnet.org");
-      const pc = createPublicClient({
-        chain: celoAlfajores,
-        transport,
-        batch: {
-          multicall: true,
-        },
-        pollingInterval: 4_000,
-      });
-      setPublicClient(pc as unknown as PublicClient);
-
-      // Request address (MiniPay docs)
       try {
-        const accounts = await window.ethereum.request({
-          method: "eth_requestAccounts",
-          params: [],
+        setIsMiniPay(!!window.ethereum.isMiniPay);
+
+        // Always use Alfajores for MiniPay
+        setAvailableCurrencies(getAvailableCurrencies("testnet"));
+
+        // viem wallet client using MiniPay/injected provider
+        const wc = createWalletClient({
+          transport: custom(window.ethereum),
+          chain: celoAlfajores,
         });
-        setAddress(accounts?.[0]);
-      } catch {
-        setAddress(undefined);
+        setWalletClient(wc);
+
+        // Verify we can connect to RPC
+        await switchRpcOnFailure(async (rpcUrl) => {
+          const blockNumber = await publicClient.getBlockNumber();
+          console.log(`Connected to blockchain at block ${blockNumber}`);
+          return blockNumber;
+        });
+
+        // Request address (MiniPay docs)
+        try {
+          const accounts = await window.ethereum.request({
+            method: "eth_requestAccounts",
+            params: [],
+          });
+          setAddress(accounts?.[0]);
+        } catch (error) {
+          console.error("Failed to get accounts:", error);
+          setAddress(undefined);
+        }
+
+        // Listen for account changes
+        const handleAccountsChanged = (accounts: string[]) => {
+          setAddress(accounts[0] ? (accounts[0] as `0x${string}`) : undefined);
+        };
+        window.ethereum.on("accountsChanged", handleAccountsChanged);
+
+        return () => {
+          window.ethereum?.removeListener(
+            "accountsChanged",
+            handleAccountsChanged
+          );
+        };
+      } catch (error) {
+        console.error("Blockchain connection error:", error);
+        setConnectionError(error instanceof Error ? error.message : "Unknown connection error");
+      } finally {
+        setIsConnecting(false);
       }
-
-      // Listen for account changes
-      const handleAccountsChanged = (accounts: string[]) => {
-        setAddress(accounts[0] ? (accounts[0] as `0x${string}`) : undefined);
-      };
-      window.ethereum.on("accountsChanged", handleAccountsChanged);
-
-      return () => {
-        window.ethereum?.removeListener(
-          "accountsChanged",
-          handleAccountsChanged
-        );
-      };
     }
 
     init();
@@ -122,6 +157,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         walletClient,
         getStableTokenAddress,
         networkType: "testnet",
+        isConnecting,
+        connectionError, 
         switchNetwork: async () => true, // Only Alfajores supported for MiniPay
         isMiniPay,
         getUserAddress: async () => {
@@ -143,13 +180,15 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
           if (!walletClient || !address)
             throw new Error("Wallet not connected");
 
-          return walletClient.writeContract({
-            address: getStableTokenAddress(currency),
-            abi: stableTokenABI,
-            functionName: "transfer",
-            args: [to as `0x${string}`, parseEther(amount)],
-            account: { address: address } as Account,
-            chain: celoAlfajores,
+          return await switchRpcOnFailure(async (rpcUrl) => {
+            return walletClient.writeContract({
+              address: getStableTokenAddress(currency),
+              abi: stableTokenABI,
+              functionName: "transfer",
+              args: [to as `0x${string}`, parseEther(amount)],
+              account: { address: address } as Account,
+              chain: celoAlfajores,
+            });
           });
         },
         signTransaction: async (): Promise<Hash> => {
@@ -164,21 +203,8 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
         getStableTokenBalance: async (
           currency: string,
           addressToCheck?: string
-        ): Promise<string> => {
-          if (!publicClient) throw new Error("No public client available");
-          const userAddress = addressToCheck || address;
-          if (!userAddress) throw new Error("No address available");
-
-          // --- DOCS-COMPLIANT: Use getContract for reading balances ---
-          const StableTokenContract = getContract({
-            abi: stableTokenABI,
-            address: getStableTokenAddress(currency),
-            client: publicClient,
-          });
-          const balanceInBigNumber = await StableTokenContract.read.balanceOf([
-            userAddress as `0x${string}`,
-          ]);
-          return formatEther(balanceInBigNumber);
+        ): Promise<string> => {          
+          return getBalanceWithClient(publicClient, currency, addressToCheck);
         },
         availableCurrencies,
       }}

@@ -31,25 +31,23 @@ const NETWORK_CONFIG = {
   },
   testnet: {
     stableTokenAddresses: {
-      cUSD: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+      cUSD: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
       USDC: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
-      USDT: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
+      // USDT: "", // No official USDT on Alfajores
     },
     chainId: "0xaef3",
     chainName: "Celo Alfajores Testnet",
   },
 } as const;
 
-// Utility: get available currencies for current network
 export function getAvailableCurrencies(
-  networkType: "mainnet" | "testnet"
+  networkType: keyof typeof NETWORK_CONFIG
 ): Currency[] {
   return Object.keys(
     NETWORK_CONFIG[networkType].stableTokenAddresses
   ) as Currency[];
 }
 
-// Define the Web3ContextType interface
 export type Web3ContextType = {
   address: `0x${string}` | undefined;
   publicClient: PublicClient | undefined;
@@ -58,6 +56,8 @@ export type Web3ContextType = {
   networkType: "mainnet" | "testnet";
   switchNetwork: (network: "mainnet" | "testnet") => Promise<boolean>;
   isMiniPay: boolean;
+  isConnecting?: boolean;
+  connectionError?: string | null;
   getUserAddress: () => Promise<string | null>;
   sendStableToken: (
     currency: string,
@@ -84,16 +84,15 @@ export const useWeb3 = () => {
   return context;
 };
 
-// Initialize public clients
 const testnetClient = createPublicClient({
   chain: celoAlfajores,
   transport: http("https://alfajores-forno.celo-testnet.org"),
-}) as PublicClient;
+}) as unknown as PublicClient;
 
 const mainnetClient = createPublicClient({
   chain: celo,
   transport: http("https://forno.celo.org"),
-}) as PublicClient;
+}) as unknown as PublicClient;
 
 export const useWeb3Provider = () => {
   const [address, setAddress] = useState<string | null>(null);
@@ -109,31 +108,21 @@ export const useWeb3Provider = () => {
     getAvailableCurrencies("testnet")
   );
 
-  // Update available currencies when network changes
   useEffect(() => {
     setAvailableCurrencies(getAvailableCurrencies(networkType));
   }, [networkType]);
 
-  // Get the current stable token address based on network type and currency
   const getStableTokenAddress = (currency: string): `0x${string}` => {
     if (!SUPPORTED_CURRENCIES[currency as Currency]) {
       throw new Error(`Unsupported currency: ${currency}`);
     }
-
     const addresses = NETWORK_CONFIG[networkType].stableTokenAddresses;
     if (!(currency in addresses)) {
       throw new Error(
         `Currency ${currency} is not supported on ${networkType}`
       );
     }
-
     return addresses[currency as keyof typeof addresses] as `0x${string}`;
-  };
-
-  const getCurrentNetwork = async () => {
-    if (!window.ethereum) return null;
-    const chainId = await window.ethereum.request({ method: "eth_chainId" });
-    return chainId === NETWORK_CONFIG.mainnet.chainId ? "mainnet" : "testnet";
   };
 
   const handleNetworkChange = async (chainId: string) => {
@@ -143,7 +132,6 @@ export const useWeb3Provider = () => {
       setAvailableCurrencies(getAvailableCurrencies("testnet"));
       return;
     }
-
     const network =
       chainId === NETWORK_CONFIG.mainnet.chainId ? "mainnet" : "testnet";
     setNetworkType(network);
@@ -156,27 +144,21 @@ export const useWeb3Provider = () => {
       console.log("No Ethereum provider found");
       return false;
     }
-
     setIsMiniPay(!!window.ethereum.isMiniPay);
-
     if (window.ethereum.isMiniPay) {
       try {
         const accounts = await window.ethereum.request({
           method: "eth_requestAccounts",
           params: [],
         });
-
         setNetworkType("testnet");
         setPublicClient(testnetClient);
         setAvailableCurrencies(getAvailableCurrencies("testnet"));
-
         if (accounts && accounts[0]) {
-          console.log("Connected to MiniPay wallet:", accounts[0]);
           setAddress(accounts[0]);
           return true;
         }
       } catch (error) {
-        console.error("Error connecting to MiniPay:", error);
         throw new Error("Failed to connect to MiniPay wallet");
       }
     }
@@ -184,31 +166,17 @@ export const useWeb3Provider = () => {
   };
 
   const switchToAlfajores = async () => {
-    if (!window.ethereum) {
-      console.error("No Ethereum provider found");
-      return false;
-    }
-
+    if (!window.ethereum) return false;
     const alfajoresChainId = `0x${celoAlfajores.id.toString(16)}`;
-    console.log("Attempting to switch to Alfajores chain:", alfajoresChainId);
-
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: alfajoresChainId }],
       });
-      console.log("Successfully switched to Alfajores");
       return true;
     } catch (switchError: any) {
-      console.log("Switch chain error details:", {
-        code: switchError.code,
-        message: switchError.message,
-        data: switchError.data,
-      });
-
       if (switchError.code === 4902) {
         try {
-          console.log("Adding Alfajores chain to wallet...");
           await window.ethereum.request({
             method: "wallet_addEthereumChain",
             params: [
@@ -230,18 +198,26 @@ export const useWeb3Provider = () => {
               },
             ],
           });
-          console.log("Successfully added Alfajores chain");
           return true;
-        } catch (addError: any) {
-          console.error("Failed to add Alfajores chain:", {
-            code: addError.code,
-            message: addError.message,
-            data: addError.data,
-          });
+        } catch {
           return false;
         }
       }
-      console.error("Failed to switch to Alfajores chain:", switchError);
+      return false;
+    }
+  };
+
+  // Optionally: Add switchToMainnet for completeness
+  const switchToMainnet = async () => {
+    if (!window.ethereum) return false;
+    const mainnetChainId = NETWORK_CONFIG.mainnet.chainId;
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: mainnetChainId }],
+      });
+      return true;
+    } catch {
       return false;
     }
   };
@@ -251,23 +227,14 @@ export const useWeb3Provider = () => {
       const hasMiniPay = await checkMiniPayWallet();
       if (!hasMiniPay) {
         if (window.ethereum) {
-          console.log("Initializing regular wallet...");
           const chainSwitched = await switchToAlfajores();
-          if (!chainSwitched) {
-            console.error("Could not switch to Alfajores chain");
-            return;
-          }
+          if (!chainSwitched) return;
           const accounts = await window.ethereum.request({
             method: "eth_requestAccounts",
           });
-          if (accounts && accounts[0]) {
-            setAddress(accounts[0]);
-            console.log("Connected to regular wallet:", accounts[0]);
-          }
+          if (accounts && accounts[0]) setAddress(accounts[0]);
         }
       }
-    } catch (error) {
-      console.error("Failed to initialize wallet:", error);
     } finally {
       setIsInitialized(true);
     }
@@ -281,20 +248,14 @@ export const useWeb3Provider = () => {
 
   useEffect(() => {
     if (!window.ethereum) return;
-
     const handleAccountsChanged = (accounts: string[]) => {
-      console.log("Accounts changed:", accounts);
       setAddress(accounts[0] || null);
     };
-
     const handleChainChanged = (chainId: string) => {
-      console.log("Chain changed:", chainId);
       handleNetworkChange(chainId);
     };
-
     window.ethereum.on("accountsChanged", handleAccountsChanged);
     window.ethereum.on("chainChanged", handleChainChanged);
-
     return () => {
       if (window.ethereum) {
         window.ethereum.removeListener(
@@ -308,12 +269,9 @@ export const useWeb3Provider = () => {
 
   const getUserAddress = async () => {
     if (!window.ethereum) throw new Error("No Ethereum provider found");
-
     const [address] = await window.ethereum.request({
       method: "eth_requestAccounts",
     });
-
-    console.log("🔗 Connected wallet address:", address);
     setAddress(address);
     return address;
   };
@@ -334,16 +292,13 @@ export const useWeb3Provider = () => {
     amount: string
   ) => {
     if (!window.ethereum) throw new Error("No Ethereum provider found");
-
     if (!availableCurrencies.includes(currency as Currency)) {
       throw new Error(
         `Currency ${currency} is not supported on ${networkType}`
       );
     }
-
     const walletClient = await getWalletClient(networkType);
     const [address] = await walletClient.getAddresses();
-
     const hash = await walletClient.writeContract({
       address: getStableTokenAddress(currency) as `0x${string}`,
       abi: stableTokenABI,
@@ -351,25 +306,20 @@ export const useWeb3Provider = () => {
       args: [to as `0x${string}`, parseEther(amount)],
       account: address,
     });
-
     return hash;
   };
 
   const signTransaction = async () => {
     if (!window.ethereum) throw new Error("No Ethereum provider found");
-
     const walletClient = createWalletClient({
       transport: custom(window.ethereum),
       chain: celoAlfajores,
     });
-
     const [address] = await walletClient.getAddresses();
-
     const res = await walletClient.signMessage({
       account: address,
       message: stringToHex("Hello from MiniPay!"),
     });
-
     return res;
   };
 
@@ -382,17 +332,14 @@ export const useWeb3Provider = () => {
       if (!userAddress || !publicClient) {
         throw new Error("No address or client available");
       }
-
       const result = await publicClient.readContract({
         abi: stableTokenABI,
         address: getStableTokenAddress(currency),
         functionName: "balanceOf",
         args: [userAddress as `0x${string}`],
       });
-
       return formatEther(result);
     } catch (error) {
-      console.error(`Error getting ${currency} balance:`, error);
       throw error;
     }
   };
@@ -410,10 +357,11 @@ export const useWeb3Provider = () => {
       try {
         if (network === "testnet") {
           return await switchToAlfajores();
+        } else if (network === "mainnet") {
+          return await switchToMainnet();
         }
         return false;
-      } catch (error) {
-        console.error("Failed to switch network:", error);
+      } catch {
         return false;
       }
     },

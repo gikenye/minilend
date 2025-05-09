@@ -17,5 +17,11 @@ router.put("/:poolId", lendingPoolController.updateLendingPool);
 router.post("/:poolId/fund", lendingPoolController.fundLendingPool);
 router.post("/:poolId/withdraw", lendingPoolController.withdrawFromLendingPool);
 router.post("/contribute", lendingPoolController.contributeToPool);
+router.post("/deposit", lendingPoolController.depositToPool);
+router.post("/borrow", lendingPoolController.borrowFromPool);
+router.post("/repay", lendingPoolController.repayLoan);
+router.get("/yields", lendingPoolController.getYields);
+router.get("/withdrawable", lendingPoolController.getWithdrawable);
+router.post("/withdraw", lendingPoolController.withdrawFromPool);
 
 export default router;

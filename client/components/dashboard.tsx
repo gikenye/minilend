@@ -28,11 +28,28 @@ export function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [balance, withdrawable, loanData] = await Promise.all([
-          getStableTokenBalance(DEFAULT_CURRENCY),
-          getWithdrawable(),
-          getUserLoan(),
-        ]);
+        // Add individual error handling for each promise
+        let balance = "0";
+        let withdrawable = { withdrawable: "0" };
+        let loanData = null;
+        
+        try {
+          balance = await getStableTokenBalance(DEFAULT_CURRENCY);
+        } catch (error) {
+          console.error("Error fetching balance:", error);
+        }
+        
+        try {
+          withdrawable = await getWithdrawable();
+        } catch (error) {
+          console.error("Error fetching withdrawable:", error);
+        }
+        
+        try {
+          loanData = await getUserLoan();
+        } catch (error) {
+          console.error("Error fetching loan data:", error);
+        }
 
         // Set loan limit as 50% of withdrawable balance
         setLoanLimit(Number(withdrawable.withdrawable) * 0.5);
@@ -59,6 +76,8 @@ export function Dashboard() {
 
     if (user) {
       fetchData();
+    } else {
+      setIsLoading(false);
     }
   }, [user, getStableTokenBalance, getWithdrawable, getUserLoan]);
 
