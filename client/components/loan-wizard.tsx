@@ -17,12 +17,14 @@ import {
   CircleDollarSign,
   Clock,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { CreditRadar } from "@/components/credit-radar";
 import { useLending } from "@/contexts/LendingContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Step = "score" | "amount" | "repayment" | "confirmation";
 
@@ -42,6 +44,12 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
 
   // 5% interest rate
   const totalRepayment = amount * 1.05;
+
+  // Minimum required balance in USD to access a loan
+  const MIN_REQUIRED_BALANCE = 5;
+  
+  // Check if user has enough funds to qualify for a loan
+  const hasMinimumBalance = availableCredit >= 500; // Assuming 500 cKES ≈ 5 USD
 
   const fetchCreditScore = async () => {
     setIsLoadingScore(true);
@@ -65,6 +73,15 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
   }, [getCreditScore]);
 
   const handleNext = () => {
+    if (!hasMinimumBalance) {
+      toast({
+        title: "Not Eligible for Loan",
+        description: "You need at least $5 USD in savings to qualify for a loan.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (step === "score") {
       setStep("amount");
     } else if (step === "amount") {
@@ -110,12 +127,13 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
   };
 
   // Calculate max loan amount based on credit score and available credit
-  const maxLoanAmount = creditScore
+  // If user doesn't have minimum balance, no loan is available
+  const maxLoanAmount = hasMinimumBalance && creditScore
     ? Math.min(
         availableCredit,
         70000 * (creditScore.score / 1000) // Scale max amount by credit score
       )
-    : availableCredit;
+    : 0;
 
   return (
     <Card>
@@ -147,13 +165,23 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
                     <span className="sr-only">Refresh credit score</span>
                   </Button>
                 </div>
-                <div className="text-sm text-muted-foreground mt-4">
-                  Based on your credit score of {creditScore.score}, you can
-                  borrow up to{" "}
-                  <span className="font-medium">
-                    cKES {Math.round(maxLoanAmount).toLocaleString()}
-                  </span>
-                </div>
+                
+                {!hasMinimumBalance ? (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      You need at least $5 USD in savings to qualify for a loan. Please add more funds to your account.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="text-sm text-muted-foreground mt-4">
+                    Based on your credit score of {creditScore.score}, you can
+                    borrow up to{" "}
+                    <span className="font-medium">
+                      cKES {Math.round(maxLoanAmount).toLocaleString()}
+                    </span>
+                  </div>
+                )}
               </>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -297,6 +325,7 @@ export function LoanWizard({ availableCredit, onSubmit }: LoanWizardProps) {
           <Button
             className={step === "score" ? "w-full" : "ml-auto"}
             onClick={handleNext}
+            disabled={!hasMinimumBalance}
           >
             Continue
             <ArrowRight className="ml-2 h-4 w-4" />

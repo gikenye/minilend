@@ -13,7 +13,7 @@ import { LayoutWrapper } from "@/components/layout-wrapper";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MiniPay Instant Loans",
+  title: "MiniLend Instant Loans",
   description:
     "Get quick loans in your local currency using your savings as security. No paperwork needed!",
   generator: "v0.dev",

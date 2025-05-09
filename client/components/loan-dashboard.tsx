@@ -324,6 +324,10 @@ export function LoanDashboard({
                   {Math.round(progress)}% repaid
                 </div>
               </>
+            ) : Number(withdrawable) < 10 ? (
+              <div className="text-xs text-red-500">
+                Need at least $5 USD in savings to qualify
+              </div>
             ) : (
               <div className="text-sm">
                 Up to{" "}
