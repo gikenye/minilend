@@ -18,6 +18,7 @@ import {
   History,
   Info,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useWeb3 } from "@/contexts/useWeb3";
@@ -35,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
+import { MiniPayDeposit } from "@/components/minipay-deposit";
 
 interface LoanDashboardProps {
   availableCredit: number;
@@ -63,6 +65,7 @@ export function LoanDashboard({
   const [balance, setBalance] = useState<string>("0");
   const [withdrawable, setWithdrawable] = useState<string>("0");
   const [currentLoan, setCurrentLoan] = useState(activeLoan);
+  const [showDepositDialog, setShowDepositDialog] = useState(false);
 
   const fetchBalances = async () => {
     try {
@@ -229,6 +232,16 @@ export function LoanDashboard({
     }
   };
 
+  const handleAddMoney = () => {
+    if (window?.ethereum?.isMiniPay) {
+      // Show a dialog for quick MiniPay deposit
+      setShowDepositDialog(true);
+    } else {
+      // Redirect to deposit page for non-MiniPay users
+      router.push("/deposit");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -241,7 +254,7 @@ export function LoanDashboard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push("/deposit")}
+              onClick={handleAddMoney}
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -275,6 +288,26 @@ export function LoanDashboard({
           </Button>
         </CardContent>
       </Card>
+
+      {/* Quick Deposit Dialog */}
+      <Dialog open={showDepositDialog} onOpenChange={setShowDepositDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add Money to Your Account</DialogTitle>
+            <DialogDescription>
+              Add funds directly from your MiniPay wallet to use in MiniLend
+            </DialogDescription>
+          </DialogHeader>
+          
+          <MiniPayDeposit 
+            onDepositComplete={() => {
+              fetchBalances();
+              setShowDepositDialog(false);
+            }} 
+          />
+          
+        </DialogContent>
+      </Dialog>
 
       <h2 className="text-lg font-semibold text-foreground mt-6 mb-2 text-center">
         What do you wanna do today?

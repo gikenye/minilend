@@ -27,6 +27,7 @@ import {
   CKES_EXCHANGE_RATE,
   DEFAULT_CURRENCY,
 } from "@/types/currencies";
+import { MiniPayDeposit } from "@/components/minipay-deposit";
 
 const REFRESH_INTERVAL = 15000; // Check balance every 15 seconds
 
@@ -141,16 +142,19 @@ export default function DepositPage() {
             </CardContent>
           </Card>
 
+          {/* MiniPay Deposit Component - Only show if in MiniPay */}
+          {isMiniPay && <MiniPayDeposit onDepositComplete={handleRefresh} />}
+
           {/* Deposit Instructions Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Plus className="h-5 w-5 text-primary" />
-                How to Add Money
+                {isMiniPay ? "Other Ways to Add Money" : "How to Add Money"}
               </CardTitle>
               <CardDescription>
                 {isMiniPay
-                  ? "Follow these steps to deposit funds"
+                  ? "Additional options to fund your account"
                   : "Please use MiniPay wallet"}
               </CardDescription>
             </CardHeader>
