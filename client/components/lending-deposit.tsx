@@ -133,23 +133,29 @@ export function LendingDeposit({ onLendingComplete, availableBalance = "0" }: Le
     setError(null);
 
     try {
-      // Call the deposit function from LendingContext
-      const hash = await deposit(currency, amount);
-
       toast({
-        title: "Lending in Progress",
-        description: `Your lending transaction of ${amount} ${currency} is processing.`,
+        title: "Starting Deposit Process",
+        description: "You'll need to approve the transaction and then confirm the deposit.",
       });
+
+      // Call the deposit function from LendingContext
+      // This already includes the approval step internally
+      const hash = await deposit(currency, amount);
 
       // Check if we received a transaction hash
       if (!hash) {
         throw new Error("Failed to get transaction hash");
       }
 
-      // Create a publicClient to wait for transaction confirmation
+      toast({
+        title: "Lending in Progress",
+        description: `Your lending transaction of ${amount} ${currency} is processing.`,
+      });
+
+      // Create publicClient to wait for transaction receipt
       const publicClient = createPublicClient({
         chain: celoAlfajores,
-        transport: custom(window.ethereum),
+        transport: custom(window.ethereum as any),
       });
       
       // Wait for confirmation

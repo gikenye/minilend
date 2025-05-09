@@ -27,6 +27,7 @@ import { createWalletClient, createPublicClient, custom, parseEther } from "viem
 import { celoAlfajores } from "viem/chains";
 import { stableTokenABI } from "@celo/abis";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useLending } from "@/contexts/LendingContext";
 
 // Token addresses on Alfajores
 const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
@@ -49,6 +50,7 @@ export function MiniPayDeposit({ onDepositComplete }: MiniPayDepositProps) {
   const [lastDepositAmount, setLastDepositAmount] = useState("");
   const [lastDepositCurrency, setLastDepositCurrency] = useState("");
   const { toast } = useToast();
+  const { deposit } = useLending();
   
   // Check network connection on component mount
   useEffect(() => {
@@ -99,47 +101,17 @@ export function MiniPayDeposit({ onDepositComplete }: MiniPayDepositProps) {
         throw new Error("MiniPay is not available. Please open this page in MiniPay browser.");
       }
 
-      // Get user's address
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-        params: [],
-      });
-      
-      if (!accounts || !accounts[0]) {
-        throw new Error("No accounts found. Please ensure your MiniPay wallet is unlocked.");
-      }
-      
-      const userAddress = accounts[0];
-      
-      // Create wallet client for MiniPay
-      const client = createWalletClient({
-        chain: celoAlfajores,
-        transport: custom(window.ethereum),
+      toast({
+        title: "Starting Deposit Process",
+        description: "You'll need to approve the transaction and then confirm the deposit.",
       });
 
-      // Get the token address based on selected currency
-      const tokenAddress = TOKEN_ADDRESSES[currency];
-      if (!tokenAddress) {
-        throw new Error(`Unsupported currency: ${currency}`);
-      }
+      // The deposit function from LendingContext already handles the approval and deposit
+      const hash = await deposit(currency, amount);
 
-      // We need to add the app's deposit address here - this is where funds will be sent
-      // For now, let's use a placeholder address that would be replaced with your actual contract address
-      const depositAddress = "0x164E90869634ADd3891BBfB8d410B0742f899826"; // Replace with your contract/deposit address
-      
-      // Convert amount to wei
-      const amountInWei = parseEther(amount);
-      
-      // Create and send transaction
-      const hash = await client.writeContract({
-        address: tokenAddress,
-        abi: stableTokenABI,
-        functionName: "transfer",
-        args: [depositAddress, amountInWei],
-        // Use cUSD as fee currency (required for MiniPay)
-        feeCurrency: TOKEN_ADDRESSES.cUSD,
-        account: userAddress as `0x${string}`,
-      });
+      if (!hash) {
+        throw new Error("Failed to get transaction hash");
+      }
 
       toast({
         title: "Deposit Initiated",
@@ -151,7 +123,7 @@ export function MiniPayDeposit({ onDepositComplete }: MiniPayDepositProps) {
         // Create a publicClient to wait for transaction confirmation
         const publicClient = createPublicClient({
           chain: celoAlfajores,
-          transport: custom(window.ethereum),
+          transport: custom(window.ethereum as any),
         });
         
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
